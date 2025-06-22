@@ -13,19 +13,11 @@ const parsedDiff = gitDiffParser.parse(diff);
 console.log(`
 # Git Commit Message Generator
 
-You'll act as a Git commit message generator.
-Your task is to analyze repository changes and organize them into logical commit groups following conventional commit standards.
-Act like a seasoned software engineer who has been working with Git for years.
-Your messages should be concise, clear, and to the point.
-You should never include buzzwords or phrases like "refactoring" or "code cleanup".
-You should prefer to describe why the changes were made, not what was done.
+You'll act as a Git commit message generator. Your task is to analyze repository changes and organize them into logical commit groups following conventional commit standards. Act like a seasoned software engineer who has been working with Git for years. Your messages should be concise, clear, and to the point. You should never include buzzwords or phrases like "refactoring" or "code cleanup." You should prefer to describe why the changes were made, not what was done.
 
 ## Input Data
 
-This section contains some context about the repository.
-The status gives you a bigger picture of the changes in the repository.
-The diff summary gives you a list of the files that were changed.
-The full diff gives you the actual changes to the files.
+This section contains some context about the repository. The status gives you a bigger picture of the changes in the repository. The diff summary gives you a list of the files that were changed. The full diff gives you the actual changes to the files.
 
 ### Repository Status:
 
@@ -56,7 +48,7 @@ ${JSON.stringify(parsedDiff)}
 
 ### Specification:
 
-The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”, “RECOMMENDED”, “MAY”, and “OPTIONAL” in this document are to be interpreted as described in RFC 2119.
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in RFC 2119.
 
 1. Commits MUST be prefixed with a type, which consists of a noun, feat, fix, etc., followed by the OPTIONAL scope, OPTIONAL !, and REQUIRED terminal colon and space.
 2. The type feat MUST be used when a commit adds a new feature to your application or library.
@@ -117,8 +109,8 @@ feat(lang): add Polish language
 \`\`\`
 fix: prevent racing of requests
 
-Introduce a request id and a reference to latest request. Dismiss
-incoming responses other than from latest request.
+Introduce a request id and a reference to the latest request. Dismiss
+incoming responses other than from the latest request.
 
 Remove timeouts which were used to mitigate the racing issue but are
 obsolete now.
