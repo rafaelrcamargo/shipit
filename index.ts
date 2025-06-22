@@ -1,5 +1,6 @@
-import { simpleGit, type StatusResult } from "simple-git";
+import { GoogleGenAI, Type } from "@google/genai";
 import gitDiffParser from "gitdiff-parser";
+import { simpleGit, type StatusResult } from "simple-git";
 
 const git = simpleGit("../cmrg/");
 
@@ -10,32 +11,77 @@ const diffSummary = await git.diffSummary();
 const diff = await git.diff();
 const parsedDiff = gitDiffParser.parse(diff);
 
-console.log(`
-# Git Commit Message Generator
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+});
+const config = {
+  thinkingConfig: {
+    thinkingBudget: 0,
+  },
+  responseMimeType: "application/json",
+  responseSchema: {
+    type: Type.ARRAY,
+    items: {
+      type: Type.OBJECT,
+      required: ["files", "type", "description", "breaking"],
+      properties: {
+        files: {
+          type: Type.ARRAY,
+          description: "Array of file paths affected by this commit group",
+          items: {
+            type: Type.STRING,
+          },
+        },
+        type: {
+          type: Type.STRING,
+          description: "Conventional commit type",
+          enum: [
+            "fix",
+            "feat",
+            "build",
+            "chore",
+            "ci",
+            "docs",
+            "style",
+            "refactor",
+            "perf",
+            "test",
+            "other",
+          ],
+        },
+        scope: {
+          type: Type.STRING,
+          description: "Optional scope for the changes",
+        },
+        description: {
+          type: Type.STRING,
+          description: "Brief description of changes",
+        },
+        body: {
+          type: Type.STRING,
+          description:
+            "Optional multi-line body with bullet points or paragraphs",
+        },
+        breaking: {
+          type: Type.BOOLEAN,
+          description: "Boolean indicating if this introduces breaking changes",
+        },
+        footers: {
+          type: Type.ARRAY,
+          description:
+            "Array of footer strings (e.g., 'BREAKING CHANGE: ...', 'Closes #123')",
+          items: {
+            type: Type.STRING,
+          },
+        },
+      },
+    },
+  },
+  systemInstruction: [
+    {
+      text: `# Git Commit Message Generator
 
 You'll act as a Git commit message generator. Your task is to analyze repository changes and organize them into logical commit groups following conventional commit standards. Act like a seasoned software engineer who has been working with Git for years. Your messages should be concise, clear, and to the point. You should never include buzzwords or phrases like "refactoring" or "code cleanup." You should prefer to describe why the changes were made, not what was done.
-
-## Input Data
-
-This section contains some context about the repository. The status gives you a bigger picture of the changes in the repository. The diff summary gives you a list of the files that were changed. The full diff gives you the actual changes to the files.
-
-### Repository Status:
-
-\`\`\`json
-${JSON.stringify(status)}
-\`\`\`
-
-### Diff Summary:
-
-\`\`\`json
-${JSON.stringify(diffSummary)}
-\`\`\`
-
-### Full Diff:
-
-\`\`\`
-${JSON.stringify(parsedDiff)}
-\`\`\`
 
 ## Task Requirements
 
@@ -69,44 +115,44 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ### Message Format:
 
-\`\`\`
+\\\`\\\`\\\`
 <type>[optional scope]: <description>
 
 [optional body]
 
 [optional footer(s)]
-\`\`\`
+\\\`\\\`\\\`
 
 ### Commit Types:
 
-- \`fix\`: Bug fixes
-- \`feat\`: New features
-- \`build\`: Build system or dependency changes
-- \`chore\`: Maintenance tasks
-- \`ci\`: CI/CD configuration changes
-- \`docs\`: Documentation changes
-- \`style\`: Code style changes (formatting, etc.)
-- \`refactor\`: Code refactoring without changing functionality
-- \`perf\`: Performance improvements
-- \`test\`: Adding or updating tests
+- \\\`fix\\\`: Bug fixes
+- \\\`feat\\\`: New features
+- \\\`build\\\`: Build system or dependency changes
+- \\\`chore\\\`: Maintenance tasks
+- \\\`ci\\\`: CI/CD configuration changes
+- \\\`docs\\\`: Documentation changes
+- \\\`style\\\`: Code style changes (formatting, etc.)
+- \\\`refactor\\\`: Code refactoring without changing functionality
+- \\\`perf\\\`: Performance improvements
+- \\\`test\\\`: Adding or updating tests
 
 ### Examples:
 
 #### Commit message with no body:
 
-\`\`\`
+\\\`\\\`\\\`
 docs: correct spelling of CHANGELOG
-\`\`\`
+\\\`\\\`\\\`
 
 #### Commit message with scope:
 
-\`\`\`
+\\\`\\\`\\\`
 feat(lang): add Polish language
-\`\`\`
+\\\`\\\`\\\`
 
 #### Commit message with multi-paragraph body and multiple footers:
 
-\`\`\`
+\\\`\\\`\\\`
 fix: prevent racing of requests
 
 Introduce a request id and a reference to the latest request. Dismiss
@@ -117,35 +163,35 @@ obsolete now.
 
 Reviewed-by: Z
 Refs: #123
-\`\`\`
+\\\`\\\`\\\`
 
 #### Commit message with description and breaking change footer:
 
-\`\`\`
+\\\`\\\`\\\`
 feat: allow provided config object to extend other configs
 
-BREAKING CHANGE: \`extends\` key in config file is now used for extending other config files
-\`\`\`
+BREAKING CHANGE: \\\`extends\\\` key in config file is now used for extending other config files
+\\\`\\\`\\\`
 
 #### Commit message with ! to draw attention to breaking change:
 
-\`\`\`
+\\\`\\\`\\\`
 feat!: send an email to the customer when a product is shipped
-\`\`\`
+\\\`\\\`\\\`
 
 #### Commit message with scope and ! to draw attention to breaking change:
 
-\`\`\`
+\\\`\\\`\\\`
 feat(api)!: send an email to the customer when a product is shipped
-\`\`\`
+\\\`\\\`\\\`
 
 #### Commit message with both ! and BREAKING CHANGE footer:
 
-\`\`\`
+\\\`\\\`\\\`
 chore!: drop support for Node 6
 
 BREAKING CHANGE: use JavaScript features not available in Node 6.
-\`\`\`
+\\\`\\\`\\\`
 
 ## Analysis Guidelines
 
@@ -154,9 +200,52 @@ BREAKING CHANGE: use JavaScript features not available in Node 6.
 3. Consider Dependencies: Group interdependent changes together
 4. Atomic Commits: Each group should represent a complete, working change
 5. Clear Descriptions: Write descriptions that are clear and concise
-6. Realistic Scopes: Use scopes that are meaningful and realistic, usually the name of the file or directory that was changed, e.g. \`fix(i18n): fix pt-BR translation\`
+6. Realistic Scopes: Use scopes that are meaningful and realistic, usually the name of the file or directory that was changed, e.g. \\\`fix(i18n): fix pt-BR translation\\\``,
+    },
+  ],
+};
+const model = "gemini-2.5-flash";
+const contents = [
+  {
+    role: "user",
+    parts: [
+      {
+        text: `## Input Data
+
+This section contains some context about the repository. The status gives you a bigger picture of the changes in the repository. The diff summary gives you a list of the files that were changed. The full diff gives you the actual changes to the files.
+
+### Repository Status:
+
+\`\`\`json
+${JSON.stringify(status)}
+\`\`\`
+
+### Diff Summary:
+
+\`\`\`json
+${JSON.stringify(diffSummary)}
+\`\`\`
+
+### Full Diff:
+
+\`\`\`
+${JSON.stringify(parsedDiff)}
+\`\`\`
 
 ---
 
-Begin Analysis:
-`);
+Begin Analysis:`,
+      },
+    ],
+  },
+];
+
+const response = await ai.models.generateContentStream({
+  model,
+  config,
+  contents,
+});
+let fileIndex = 0;
+for await (const chunk of response) {
+  console.log(chunk.text);
+}

@@ -1,16 +1,42 @@
 {
   "name": "git-thing",
-  "module": "index.ts",
   "type": "module",
   "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
+  "module": "index.ts",
+  "scripts": {
+    "format": "prettier --ignore-unknown --write . --ignore-path .gitignore",
+    "postinstall": "simple-git-hooks",
+    "preinstall": "pnpm dlx only-allow bun"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@google/genai": "^1.6.0",
     "gitdiff-parser": "^0.3.1",
+    "mime": "^4.0.7",
     "simple-git": "^3.28.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^24.0.3",
+    "lint-staged": "^16.1.2",
+    "prettier": "^3.5.3",
+    "prettier-plugin-organize-imports": "^4.1.0",
+    "prettier-plugin-pkg": "^0.21.1",
+    "simple-git-hooks": "^2.13.0"
+  },
+  "lint-staged": {
+    "*": "prettier --ignore-unknown --write --allow-empty"
+  },
+  "prettier": {
+    "organizeImportsSkipDestructiveCodeActions": true,
+    "plugins": [
+      "prettier-plugin-organize-imports",
+      "prettier-plugin-pkg"
+    ]
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm lint-staged"
   }
 }
