@@ -2,6 +2,7 @@
   "name": "git-thing",
   "type": "module",
   "private": true,
+  "packageManager": "pnpm@9.7.0+sha512.dc09430156b427f5ecfc79888899e1c39d2d690f004be70e05230b72cb173d96839587545d09429b55ac3c429c801b4dc3c0e002f653830a420fa2dd4e3cf9cf",
   "module": "index.ts",
   "scripts": {
     "format": "prettier --ignore-unknown --write . --ignore-path .gitignore",
@@ -12,19 +13,26 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@clack/prompts": "1.0.0-alpha.1",
     "@google/genai": "^1.6.0",
+    "chalk": "^5.4.1",
+    "eslint-plugin-perfectionist": "^4.15.0",
     "gitdiff-parser": "^0.3.1",
     "mime": "^4.0.7",
     "simple-git": "^3.28.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.29.0",
     "@types/bun": "latest",
     "@types/node": "^24.0.3",
+    "eslint": "^9.29.0",
+    "globals": "^16.2.0",
     "lint-staged": "^16.1.2",
     "prettier": "^3.5.3",
     "prettier-plugin-organize-imports": "^4.1.0",
     "prettier-plugin-pkg": "^0.21.1",
-    "simple-git-hooks": "^2.13.0"
+    "simple-git-hooks": "^2.13.0",
+    "typescript-eslint": "^8.34.1"
   },
   "lint-staged": {
     "*": "prettier --ignore-unknown --write --allow-empty"

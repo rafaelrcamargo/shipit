@@ -1,251 +1,108 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import gitDiffParser from "gitdiff-parser";
-import { simpleGit, type StatusResult } from "simple-git";
+import { intro, log, outro, spinner, taskLog } from "@clack/prompts";
+import { GoogleGenAI } from "@google/genai";
+import chalk from "chalk";
+import { simpleGit } from "simple-git";
+import {
+  responseSchema,
+  systemInstruction,
+  userInstruction,
+} from "./constants";
+import type { ResponseSchema } from "./types";
+import { decapitalizeFirstLetter } from "./utils";
+
+intro(`Generating commit message...`);
+
+const s = spinner();
+
+s.start("Gathering git information...");
 
 const git = simpleGit("../cmrg/");
 
-const { files, ...status } = await git.status();
-
+const { files: _files, isClean: _isClean, ...status } = await git.status();
 const diffSummary = await git.diffSummary();
-
 const diff = await git.diff();
-const parsedDiff = gitDiffParser.parse(diff);
+
+s.stop("Git information gathered successfully");
+
+const task = taskLog({
+  title: "Asking AI to generate commit message...",
+});
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
+
+const model = "gemini-2.5-flash";
 const config = {
   thinkingConfig: {
     thinkingBudget: 0,
   },
   responseMimeType: "application/json",
-  responseSchema: {
-    type: Type.ARRAY,
-    items: {
-      type: Type.OBJECT,
-      required: ["files", "type", "description", "breaking"],
-      properties: {
-        files: {
-          type: Type.ARRAY,
-          description: "Array of file paths affected by this commit group",
-          items: {
-            type: Type.STRING,
-          },
-        },
-        type: {
-          type: Type.STRING,
-          description: "Conventional commit type",
-          enum: [
-            "fix",
-            "feat",
-            "build",
-            "chore",
-            "ci",
-            "docs",
-            "style",
-            "refactor",
-            "perf",
-            "test",
-            "other",
-          ],
-        },
-        scope: {
-          type: Type.STRING,
-          description: "Optional scope for the changes",
-        },
-        description: {
-          type: Type.STRING,
-          description: "Brief description of changes",
-        },
-        body: {
-          type: Type.STRING,
-          description:
-            "Optional multi-line body with bullet points or paragraphs",
-        },
-        breaking: {
-          type: Type.BOOLEAN,
-          description: "Boolean indicating if this introduces breaking changes",
-        },
-        footers: {
-          type: Type.ARRAY,
-          description:
-            "Array of footer strings (e.g., 'BREAKING CHANGE: ...', 'Closes #123')",
-          items: {
-            type: Type.STRING,
-          },
-        },
-      },
-    },
-  },
-  systemInstruction: [
-    {
-      text: `# Git Commit Message Generator
-
-You'll act as a Git commit message generator. Your task is to analyze repository changes and organize them into logical commit groups following conventional commit standards. Act like a seasoned software engineer who has been working with Git for years. Your messages should be concise, clear, and to the point. You should never include buzzwords or phrases like "refactoring" or "code cleanup." You should prefer to describe why the changes were made, not what was done.
-
-## Task Requirements
-
-1. Analyze all changes in the repository
-2. Group related changes together logically
-3. Categorize each group by type and purpose
-4. Generate conventional commit messages for each group
-
-## Conventional Commit Format
-
-### Specification:
-
-The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in RFC 2119.
-
-1. Commits MUST be prefixed with a type, which consists of a noun, feat, fix, etc., followed by the OPTIONAL scope, OPTIONAL !, and REQUIRED terminal colon and space.
-2. The type feat MUST be used when a commit adds a new feature to your application or library.
-3. The type fix MUST be used when a commit represents a bug fix for your application.
-4. A scope MAY be provided after a type. A scope MUST consist of a noun describing a section of the codebase surrounded by parenthesis, e.g., fix(parser):
-5. A description MUST immediately follow the colon and space after the type/scope prefix. The description is a short summary of the code changes, e.g., fix: array parsing issue when multiple spaces were contained in string.
-6. A longer commit body MAY be provided after the short description, providing additional contextual information about the code changes. The body MUST begin one blank line after the description.
-7. A commit body is free-form and MAY consist of any number of newline separated paragraphs.
-8. One or more footers MAY be provided one blank line after the body. Each footer MUST consist of a word token, followed by either a :<space> or <space># separator, followed by a string value (this is inspired by the git trailer convention).
-9. A footer's token MUST use - in place of whitespace characters, e.g., Acked-by (this helps differentiate the footer section from a multi-paragraph body). An exception is made for BREAKING CHANGE, which MAY also be used as a token.
-10. A footer's value MAY contain spaces and newlines, and parsing MUST terminate when the next valid footer token/separator pair is observed.
-11. Breaking changes MUST be indicated in the type/scope prefix of a commit, or as an entry in the footer.
-12. If included as a footer, a breaking change MUST consist of the uppercase text BREAKING CHANGE, followed by a colon, space, and description, e.g., BREAKING CHANGE: environment variables now take precedence over config files.
-13. If included in the type/scope prefix, breaking changes MUST be indicated by a ! immediately before the :. If ! is used, BREAKING CHANGE: MAY be omitted from the footer section, and the commit description SHALL be used to describe the breaking change.
-14. Types other than feat and fix MAY be used in your commit messages, e.g., docs: update ref docs.
-15. The units of information that make up Conventional Commits MUST NOT be treated as case sensitive by implementors, with the exception of BREAKING CHANGE which MUST be uppercase.
-16. BREAKING-CHANGE MUST be synonymous with BREAKING CHANGE, when used as a token in a footer.
-
-### Message Format:
-
-\\\`\\\`\\\`
-<type>[optional scope]: <description>
-
-[optional body]
-
-[optional footer(s)]
-\\\`\\\`\\\`
-
-### Commit Types:
-
-- \\\`fix\\\`: Bug fixes
-- \\\`feat\\\`: New features
-- \\\`build\\\`: Build system or dependency changes
-- \\\`chore\\\`: Maintenance tasks
-- \\\`ci\\\`: CI/CD configuration changes
-- \\\`docs\\\`: Documentation changes
-- \\\`style\\\`: Code style changes (formatting, etc.)
-- \\\`refactor\\\`: Code refactoring without changing functionality
-- \\\`perf\\\`: Performance improvements
-- \\\`test\\\`: Adding or updating tests
-
-### Examples:
-
-#### Commit message with no body:
-
-\\\`\\\`\\\`
-docs: correct spelling of CHANGELOG
-\\\`\\\`\\\`
-
-#### Commit message with scope:
-
-\\\`\\\`\\\`
-feat(lang): add Polish language
-\\\`\\\`\\\`
-
-#### Commit message with multi-paragraph body and multiple footers:
-
-\\\`\\\`\\\`
-fix: prevent racing of requests
-
-Introduce a request id and a reference to the latest request. Dismiss
-incoming responses other than from the latest request.
-
-Remove timeouts which were used to mitigate the racing issue but are
-obsolete now.
-
-Reviewed-by: Z
-Refs: #123
-\\\`\\\`\\\`
-
-#### Commit message with description and breaking change footer:
-
-\\\`\\\`\\\`
-feat: allow provided config object to extend other configs
-
-BREAKING CHANGE: \\\`extends\\\` key in config file is now used for extending other config files
-\\\`\\\`\\\`
-
-#### Commit message with ! to draw attention to breaking change:
-
-\\\`\\\`\\\`
-feat!: send an email to the customer when a product is shipped
-\\\`\\\`\\\`
-
-#### Commit message with scope and ! to draw attention to breaking change:
-
-\\\`\\\`\\\`
-feat(api)!: send an email to the customer when a product is shipped
-\\\`\\\`\\\`
-
-#### Commit message with both ! and BREAKING CHANGE footer:
-
-\\\`\\\`\\\`
-chore!: drop support for Node 6
-
-BREAKING CHANGE: use JavaScript features not available in Node 6.
-\\\`\\\`\\\`
-
-## Analysis Guidelines
-
-1. Group by Purpose: Combine files that serve the same logical purpose
-2. Separate Concerns: Don't mix different types of changes (features vs fixes)
-3. Consider Dependencies: Group interdependent changes together
-4. Atomic Commits: Each group should represent a complete, working change
-5. Clear Descriptions: Write descriptions that are clear and concise
-6. Realistic Scopes: Use scopes that are meaningful and realistic, usually the name of the file or directory that was changed, e.g. \\\`fix(i18n): fix pt-BR translation\\\``,
-    },
-  ],
+  responseSchema,
+  systemInstruction,
 };
-const model = "gemini-2.5-flash";
-const contents = [
-  {
-    role: "user",
-    parts: [
-      {
-        text: `## Input Data
 
-This section contains some context about the repository. The status gives you a bigger picture of the changes in the repository. The diff summary gives you a list of the files that were changed. The full diff gives you the actual changes to the files.
-
-### Repository Status:
-
-\`\`\`json
-${JSON.stringify(status)}
-\`\`\`
-
-### Diff Summary:
-
-\`\`\`json
-${JSON.stringify(diffSummary)}
-\`\`\`
-
-### Full Diff:
-
-\`\`\`
-${JSON.stringify(parsedDiff)}
-\`\`\`
-
----
-
-Begin Analysis:`,
-      },
-    ],
-  },
-];
-
+let stream = "";
 const response = await ai.models.generateContentStream({
   model,
   config,
-  contents,
+  contents: [
+    {
+      role: "user",
+      parts: userInstruction(status, diffSummary, diff),
+    },
+  ],
 });
-let fileIndex = 0;
 for await (const chunk of response) {
-  console.log(chunk.text);
+  if (chunk.text) {
+    task.message(chunk.text);
+    stream += chunk.text;
+  }
 }
+
+task.success("Commit message generated successfully");
+
+const commitMessages = JSON.parse(stream) as ResponseSchema;
+
+for (const {
+  files,
+  type,
+  scope,
+  breaking,
+  description,
+  body,
+  footers,
+} of commitMessages) {
+  let message = `${type}${scope?.length ? `(${scope})` : ""}${breaking ? "!" : ""}: `;
+  message += decapitalizeFirstLetter(description);
+  if (body?.length) message += `\n\n${body}`;
+  if (footers?.length) message += `\n\n${footers.join("\n")}`;
+
+  log.step(chalk.dim(message));
+
+  try {
+    await git.add(files);
+    log.success("Added files to staging area");
+  } catch (error) {
+    log.error(chalk.red("Failed to add files to staging area"));
+    log.error(chalk.dim(JSON.stringify(error, null, 2)));
+    process.exit(1);
+  }
+
+  try {
+    const commit = await git.commit(message, files);
+    log.success(
+      `${commit.branch}: ${commit.commit} ${chalk.dim(
+        `(${commit.summary.changes} changes, ${chalk.green(
+          "+" + commit.summary.insertions,
+        )}, ${chalk.red("-" + commit.summary.deletions)})`,
+      )}`,
+    );
+  } catch (error) {
+    log.error(chalk.red("Failed to commit files"));
+    log.error(chalk.dim(JSON.stringify(error, null, 2)));
+    process.exit(1);
+  }
+}
+
+outro(`You're all set!`);
