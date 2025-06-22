@@ -11,9 +11,9 @@ const diff = await git.diff();
 const parsedDiff = gitDiffParser.parse(diff);
 
 console.log(`
-# Git Repository Analysis Task
+# Git Commit Message Generator
 
-You are a Git commit analyzer.
+You'll act as a Git commit message generator.
 Your task is to analyze repository changes and organize them into logical commit groups following conventional commit standards.
 Act like a seasoned software engineer who has been working with Git for years.
 Your messages should be concise, clear, and to the point.
@@ -100,67 +100,60 @@ The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL 
 
 ### Examples:
 
+#### Commit message with no body:
+
 \`\`\`
-# Commit message with description and breaking change footer
+docs: correct spelling of CHANGELOG
+\`\`\`
+
+#### Commit message with scope:
+
+\`\`\`
+feat(lang): add Polish language
+\`\`\`
+
+#### Commit message with multi-paragraph body and multiple footers:
+
+\`\`\`
+fix: prevent racing of requests
+
+Introduce a request id and a reference to latest request. Dismiss
+incoming responses other than from latest request.
+
+Remove timeouts which were used to mitigate the racing issue but are
+obsolete now.
+
+Reviewed-by: Z
+Refs: #123
+\`\`\`
+
+#### Commit message with description and breaking change footer:
+
+\`\`\`
 feat: allow provided config object to extend other configs
 
 BREAKING CHANGE: \`extends\` key in config file is now used for extending other config files
 \`\`\`
 
+#### Commit message with ! to draw attention to breaking change:
+
 \`\`\`
-# Commit message with ! to draw attention to breaking change
 feat!: send an email to the customer when a product is shipped
 \`\`\`
 
+#### Commit message with scope and ! to draw attention to breaking change:
+
 \`\`\`
-# Commit message with scope and ! to draw attention to breaking change
 feat(api)!: send an email to the customer when a product is shipped
 \`\`\`
 
+#### Commit message with both ! and BREAKING CHANGE footer:
+
 \`\`\`
-# Commit message with both ! and BREAKING CHANGE footer
 chore!: drop support for Node 6
 
 BREAKING CHANGE: use JavaScript features not available in Node 6.
 \`\`\`
-
-\`\`\`
-# Commit message with no body
-docs: correct spelling of CHANGELOG
-\`\`\`
-
-\`\`\`
-# Commit message with scope
-feat(lang): add Polish language
-\`\`\`
-
-## Expected Output Format
-
-Return a JSON array of commit groups:
-
-\`\`\`json
-[
-  {
-    files: [<path>, <path>, <path>],
-    type: <"fix" | "feat" | "build" | "chore" | "ci" | "docs" | "style" | "refactor" | "perf" | "test" | "other">,
-    scope: <scope>,
-    description: <description>,
-    body: <body>,
-    breaking: <boolean>,
-    footers: [<footer>, <footer>, <footer>],
-  },
-  ...
-]
-\`\`\`
-
-### Field Descriptions
-- files: Array of file paths affected by this commit group (required)
-- type: Conventional commit type (required)
-- scope: Optional scope for the changes (optional)
-- description: Brief description of changes (required)
-- body: Optional multi-line body with bullet points or paragraphs (optional)
-- breaking: Boolean indicating if this introduces breaking changes (required)
-- footers: Array of footer strings (e.g., "BREAKING CHANGE: ...", "Closes #123") (optional)
 
 ## Analysis Guidelines
 
@@ -169,14 +162,7 @@ Return a JSON array of commit groups:
 3. Consider Dependencies: Group interdependent changes together
 4. Atomic Commits: Each group should represent a complete, working change
 5. Clear Descriptions: Write descriptions that are clear and concise
-
-## Output Instructions
-
-- Return ONLY the JSON array, no additional text
-- Ensure all required fields are present
-- Use clear, concise language
-- Follow conventional commit standards strictly
-- Group changes logically, not just by file type
+6. Realistic Scopes: Use scopes that are meaningful and realistic, usually the name of the file or directory that was changed, e.g. \`fix(i18n): fix pt-BR translation\`
 
 ---
 
