@@ -1,0 +1,16 @@
+{
+  "name": "git-thing",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "gitdiff-parser": "^0.3.1",
+    "simple-git": "^3.28.0"
+  }
+}
