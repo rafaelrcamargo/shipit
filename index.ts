@@ -10,59 +10,106 @@ import {
 import type { ResponseSchema } from "./types";
 import { decapitalizeFirstLetter } from "./utils";
 
-intro(`Generating commit message...`);
+intro(`🤖 AI Git Commit Assistant - Let's craft meaningful commit messages!`);
 
 const s = spinner();
 
-s.start("Gathering git information...");
+s.start("Analyzing your repository...");
 
 const git = simpleGit("../cmrg/");
 
-const { files: _files, isClean: _isClean, ...status } = await git.status();
-const diffSummary = await git.diffSummary();
-const diff = await git.diff();
+let status, diffSummary, diff;
 
-s.stop("Git information gathered successfully");
+try {
+  s.message("Checking repository status...");
+  const {
+    files: _files,
+    isClean: _isClean,
+    ...statusResult
+  } = await git.status();
+  status = statusResult;
+
+  s.message("Generating diff summary...");
+  diffSummary = await git.diffSummary();
+
+  s.message("Capturing detailed changes...");
+  diff = await git.diff();
+
+  if (!diffSummary.files.length) {
+    s.stop("No changes detected in repository");
+    outro("Nothing to commit! Make some changes first.");
+    process.exit(0);
+  }
+
+  s.stop(
+    `Analysis complete - found ${diffSummary.files.length} modified file(s)`,
+  );
+} catch (error) {
+  s.stop("Failed to analyze repository");
+  log.error("Could not access git repository. Are you in a git project?");
+  log.error(chalk.dim(JSON.stringify(error, null, 2)));
+  process.exit(1);
+}
 
 const task = taskLog({
-  title: "Asking AI to generate commit message...",
+  title: "AI is analyzing your changes...",
 });
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-const model = "gemini-2.5-flash";
-const config = {
-  thinkingConfig: {
-    thinkingBudget: 0,
-  },
-  responseMimeType: "application/json",
-  responseSchema,
-  systemInstruction,
-};
-
-let stream = "";
-const response = await ai.models.generateContentStream({
-  model,
-  config,
-  contents: [
-    {
-      role: "user",
-      parts: userInstruction(status, diffSummary, diff),
+let response;
+try {
+  response = await ai.models.generateContentStream({
+    model: "gemini-2.5-flash",
+    config: {
+      responseMimeType: "application/json",
+      thinkingConfig: { thinkingBudget: 0 },
+      responseSchema,
+      systemInstruction,
     },
-  ],
-});
-for await (const chunk of response) {
-  if (chunk.text) {
-    task.message(chunk.text);
-    stream += chunk.text;
-  }
+    contents: [
+      {
+        role: "user",
+        parts: userInstruction(status, diffSummary, diff),
+      },
+    ],
+  });
+} catch (error) {
+  task.error(chalk.red("AI request failed"));
+  log.error(
+    "Could not connect to AI service. Check your API key and connection.",
+  );
+  log.error(chalk.dim(JSON.stringify(error, null, 2)));
+  process.exit(1);
 }
 
-task.success("Commit message generated successfully");
+let stream = "";
+try {
+  for await (const chunk of response) {
+    if (chunk.text) {
+      task.message(chunk.text);
+      stream += chunk.text;
+    }
+  }
+} catch (error) {
+  task.error(chalk.red("Failed to process AI response"));
+  log.error("Something went wrong while generating commit messages.");
+  log.error(chalk.dim(JSON.stringify(error, null, 2)));
+  process.exit(1);
+}
 
-const commitMessages = JSON.parse(stream) as ResponseSchema;
+task.success("Commit messages generated successfully");
+
+let commitMessages;
+try {
+  commitMessages = JSON.parse(stream) as ResponseSchema;
+} catch (_error) {
+  log.error(chalk.red("Failed to parse AI response - received invalid format"));
+  log.error(chalk.dim("Raw response: " + stream));
+  process.exit(1);
+}
 
 for (const {
   files,
@@ -82,9 +129,9 @@ for (const {
 
   try {
     await git.add(files);
-    log.success("Added files to staging area");
+    log.success(`Staged ${files.length} file(s) for commit`);
   } catch (error) {
-    log.error(chalk.red("Failed to add files to staging area"));
+    log.error(chalk.red("Failed to stage files"));
     log.error(chalk.dim(JSON.stringify(error, null, 2)));
     process.exit(1);
   }
@@ -92,17 +139,19 @@ for (const {
   try {
     const commit = await git.commit(message, files);
     log.success(
-      `${commit.branch}: ${commit.commit} ${chalk.dim(
+      `Committed to ${commit.branch}: ${chalk.bold(commit.commit.slice(0, 7))} ${chalk.dim(
         `(${commit.summary.changes} changes, ${chalk.green(
           "+" + commit.summary.insertions,
         )}, ${chalk.red("-" + commit.summary.deletions)})`,
       )}`,
     );
   } catch (error) {
-    log.error(chalk.red("Failed to commit files"));
+    log.error(chalk.red("Commit failed"));
     log.error(chalk.dim(JSON.stringify(error, null, 2)));
     process.exit(1);
   }
 }
 
-outro(`You're all set!`);
+outro(
+  `🎉 All commits created successfully! Your changes are now in Git history.`,
+);
