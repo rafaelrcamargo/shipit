@@ -10,7 +10,7 @@ import {
 import type { ResponseSchema } from "./types";
 import { decapitalizeFirstLetter } from "./utils";
 
-intro(`🤖 AI Git Commit Assistant - Let's craft meaningful commit messages!`);
+intro(`AI Git Commit Assistant`);
 
 const s = spinner();
 
@@ -41,9 +41,7 @@ try {
     process.exit(0);
   }
 
-  s.stop(
-    `Analysis complete - found ${diffSummary.files.length} modified file(s)`,
-  );
+  s.stop(`Found ${diffSummary.files.length} modified file(s)`);
 } catch (error) {
   s.stop("Failed to analyze repository");
   log.error("Could not access git repository. Are you in a git project?");
@@ -52,7 +50,7 @@ try {
 }
 
 const task = taskLog({
-  title: "AI is analyzing your changes...",
+  title: "Analyzing changes...",
 });
 
 const ai = new GoogleGenAI({
@@ -100,7 +98,7 @@ try {
   process.exit(1);
 }
 
-task.success("Commit messages generated successfully");
+task.success("Generated commit messages");
 
 let commitMessages;
 try {
@@ -129,7 +127,7 @@ for (const {
 
   try {
     await git.add(files);
-    log.success(`Staged ${files.length} file(s) for commit`);
+    log.success(`Staged ${files.length} file(s)`);
   } catch (error) {
     log.error(chalk.red("Failed to stage files"));
     log.error(chalk.dim(JSON.stringify(error, null, 2)));
@@ -152,6 +150,4 @@ for (const {
   }
 }
 
-outro(
-  `🎉 All commits created successfully! Your changes are now in Git history.`,
-);
+outro(`Done. Created ${commitMessages.length} commit(s).`);
