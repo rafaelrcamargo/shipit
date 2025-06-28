@@ -13,26 +13,28 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@ai-sdk/google": "^2.0.0-canary.20",
     "@clack/prompts": "1.0.0-alpha.1",
-    "@google/genai": "^1.6.0",
+    "ai": "^5.0.0-canary.24",
     "chalk": "^5.4.1",
-    "eslint-plugin-perfectionist": "^4.15.0",
-    "gitdiff-parser": "^0.3.1",
-    "mime": "^4.0.7",
-    "simple-git": "^3.28.0"
+    "gpt-tokenizer": "^3.0.1",
+    "simple-git": "^3.28.0",
+    "zod": "^3.25.67"
   },
   "devDependencies": {
-    "@eslint/js": "^9.29.0",
+    "@eslint/js": "^9.30.0",
     "@types/bun": "latest",
-    "@types/node": "^24.0.3",
-    "eslint": "^9.29.0",
+    "@types/node": "^24.0.6",
+    "@types/stream-json": "^1.7.8",
+    "eslint": "^9.30.0",
+    "eslint-plugin-perfectionist": "^4.15.0",
     "globals": "^16.2.0",
     "lint-staged": "^16.1.2",
-    "prettier": "^3.5.3",
+    "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.1.0",
     "prettier-plugin-pkg": "^0.21.1",
     "simple-git-hooks": "^2.13.0",
-    "typescript-eslint": "^8.34.1"
+    "typescript-eslint": "^8.35.0"
   },
   "lint-staged": {
     "*": "prettier --ignore-unknown --write --allow-empty"

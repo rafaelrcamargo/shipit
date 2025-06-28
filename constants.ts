@@ -1,68 +1,7 @@
-import { Type } from "@google/genai/node";
 import type { DiffResult } from "simple-git";
+import { z } from "zod";
 
-export const responseSchema = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    required: ["files", "type", "description", "breaking"],
-    properties: {
-      files: {
-        type: Type.ARRAY,
-        description: "Array of file paths affected by this commit group",
-        items: {
-          type: Type.STRING,
-        },
-      },
-      type: {
-        type: Type.STRING,
-        description: "Conventional commit type",
-        enum: [
-          "fix",
-          "feat",
-          "build",
-          "chore",
-          "ci",
-          "docs",
-          "style",
-          "refactor",
-          "perf",
-          "test",
-          "other",
-        ],
-      },
-      scope: {
-        type: Type.STRING,
-        description: "Optional scope for the changes",
-      },
-      description: {
-        type: Type.STRING,
-        description: "Brief description of changes",
-      },
-      body: {
-        type: Type.STRING,
-        description:
-          "Optional multi-line body with bullet points or paragraphs",
-      },
-      breaking: {
-        type: Type.BOOLEAN,
-        description: "Boolean indicating if this introduces breaking changes",
-      },
-      footers: {
-        type: Type.ARRAY,
-        description:
-          "Array of footer strings (e.g., 'BREAKING CHANGE: ...', 'Closes #123')",
-        items: {
-          type: Type.STRING,
-        },
-      },
-    },
-  },
-};
-
-export const systemInstruction = [
-  {
-    text: `# Expert \`git\` companion
+export const systemInstruction = `# Expert \`git\` companion
 
 You are an expert AI assistant specializing in Git. Your sole task is to function as an advanced commit message generator. You will be given a parsed output of \`git status\` and a raw \`git diff\` output, you must analyze the changes and produce one or more logical, clear and concise atomic commit messages.
 
@@ -184,17 +123,15 @@ Refs: #123
 1. Group by purpose: First, analyze all files. Combine files that serve a single logical purpose into one group. A feature and its corresponding tests should be in the same commit. A change to the CI configuration should be in a separate commit.
 2. Atomic changes: Each group must represent a complete, working change.
 3. Use meaningful scopes: Scopes should be realistic and describe a section of the codebase. Good scopes are often the name of the affected component, directory, or feature (e.g., \`fix(parser):\`, \`feat(auth):\`).
-4. Write clear descriptions: The description is a short summary of the change. It MUST be under 50 characters.`,
-  },
-];
+4. Write clear descriptions: The description is a short summary of the change. It MUST be under 50 characters.
+5. NEVER repeat the \`type\` or \`scope\` in the description.
+6. Be really mindful about BREAKING CHANGES, only use them if the change is really core to the application.`;
 
 export const userInstruction = <Status>(
   status: Status,
   diffSummary: DiffResult,
   diff: string,
-) => [
-  {
-    text: `## Instructions
+) => `## Instructions
 
 You are an expert software developer tasked with writing a commit message for the following changes. Adhere to the **Conventional Commits** specification. The commit message should have a concise subject line and a more detailed body explaining the "what" and "why" of the changes.
 
@@ -220,6 +157,44 @@ ${diff}
 
 ---
 
-## Commit Message:`,
-  },
-];
+## Commit Message:`;
+
+// Zod schema equivalent to responseSchema
+export const responseZodSchema = z.object({
+  files: z
+    .array(z.string())
+    .describe("Array of file paths affected by this commit group"),
+  type: z
+    .enum([
+      "fix",
+      "feat",
+      "build",
+      "chore",
+      "ci",
+      "docs",
+      "style",
+      "refactor",
+      "perf",
+      "test",
+      "other",
+    ])
+    .describe("Conventional commit type"),
+  scope: z.string().optional().describe("Optional scope for the changes"),
+  description: z.string().describe("Brief description of changes"),
+  body: z
+    .string()
+    .optional()
+    .describe("Optional multi-line body with bullet points or paragraphs"),
+  breaking: z
+    .boolean()
+    .describe("Boolean indicating if this introduces breaking changes"),
+  footers: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Array of footer strings (e.g., 'BREAKING CHANGE: ...', 'Closes #123')",
+    ),
+});
+
+// Type inference from the Zod schema
+export type ResponseSchema = z.infer<typeof responseZodSchema>;
