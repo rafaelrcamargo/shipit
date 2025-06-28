@@ -3,36 +3,6 @@ import chalk from "chalk";
 export const decapitalizeFirstLetter = (str: string) =>
   str.charAt(0).toLocaleLowerCase() + str.slice(1);
 
-export type TimedResult<T> = [
-  T,
-  {
-    start: number;
-    end: number;
-    duration: number;
-  },
-];
-
-export function time<T>(operation: () => T): TimedResult<T>;
-export function time<T>(operation: () => Promise<T>): Promise<TimedResult<T>>;
-export function time<T>(
-  operation: () => T | Promise<T>,
-): TimedResult<T> | Promise<TimedResult<T>> {
-  const start = performance.now();
-  const result = operation();
-
-  if (result instanceof Promise) {
-    return result.then((value) => {
-      const end = performance.now();
-      const duration = Math.round(end - start);
-      return [value, { start, end, duration }];
-    });
-  } else {
-    const end = performance.now();
-    const duration = Math.round(end - start);
-    return [result, { start, end, duration }];
-  }
-}
-
 export const categorizeChangesCount = (changesCount: number) => {
   if (changesCount < 10) return "Nice!";
   if (changesCount < 50) return chalk.bold("Solid!");
@@ -44,32 +14,30 @@ export const categorizeTokenCount = (tokenCount: number) => {
   if (tokenCount < 5000) {
     return {
       emoji: "🟢",
-      label: "looking fresh",
+      label: `looking fresh ${chalk.dim("(instant response)")}`,
     };
   } else if (tokenCount < 15000) {
     return {
       emoji: "🟡",
-      label: "totally fine",
+      label: `totally fine ${chalk.dim("(1-2 seconds)")}`,
     };
   } else if (tokenCount < 50000) {
     return {
       emoji: "🟠",
-      label: "getting chunky",
+      label: `still good ${chalk.dim("(3-5 seconds)")}`,
     };
   } else if (tokenCount < 100000) {
     return {
       emoji: "🔴",
-      label: "yikes territory",
-      description:
-        "This is gonna hurt your wallet and probably piss off the API gods",
+      label: `yikes territory ${chalk.dim("(may hit rate limits)")}`,
+      description: "This will take 10+ seconds and cost significantly more.",
       needsConfirmation: true,
     };
   } else {
     return {
       emoji: undefined,
       label: chalk.bold.red("an absolute unit 💀"),
-      description:
-        "Are you f*cking kidding me? This will cost a fortune and might literally melt the servers",
+      description: "This exceeds most API limits and will be very expensive.",
       needsConfirmation: true,
     };
   }

@@ -15,7 +15,6 @@ import {
   categorizeChangesCount,
   categorizeTokenCount,
   decapitalizeFirstLetter,
-  time,
   wrapText,
 } from "./utils.ts";
 
@@ -64,13 +63,11 @@ tokenCountSpinner.start(
   "Doing some quick math (don't worry, it's not your job)...",
 );
 
-const [actualTokenCount, { duration: tokenCountDuration }] = time(() =>
-  countTokens(prompt),
-);
+const actualTokenCount = countTokens(prompt);
 const category = categorizeTokenCount(actualTokenCount);
 
 tokenCountSpinner.stop(
-  `${category.emoji ? `${category.emoji} ` : ""}That's ${chalk.bold(`~${actualTokenCount} tokens`)} of pure chaos, ${category.label} ${tokenCountDuration > 50 ? chalk.dim(`(took ${tokenCountDuration}ms to count 'em)`) : ""}`,
+  `${category.emoji ? `${category.emoji} ` : ""}That's ${chalk.bold(`~${actualTokenCount} tokens`)} of pure chaos, ${category.label}`,
 );
 
 if (category.needsConfirmation) {
@@ -101,6 +98,7 @@ commitSpinner.start("Making commit messages that don't suck...");
 
 let commitCount = 0;
 for await (const commit of elementStream) {
+  log.message("", { symbol: chalk.gray("│") });
   if (commitCount === 0) {
     commitSpinner.stop("Here come the goods...");
   } else {
@@ -143,32 +141,33 @@ for await (const commit of elementStream) {
   });
 
   if (shouldCommit) {
-    // let message = `${commit.type}${commit.scope?.length ? `(${commit.scope})` : ""}${commit.breaking ? "!" : ""}: `;
-    // message += decapitalizeFirstLetter(commit.description);
-    // if (commit.body?.length) message += `\n\n${commit.body}`;
-    // if (commit.footers?.length) message += `\n\n${commit.footers.join("\n")}`;
-    // try {
-    //   await git.add(files);
-    //   log.success(`Staged ${files.length} file(s)`);
-    // } catch (error) {
-    //   log.error(chalk.red("Failed to stage files"));
-    //   log.error(chalk.dim(JSON.stringify(error, null, 2)));
-    //   process.exit(1);
-    // }
-    // try {
-    //   const commit = await git.commit(message, files);
-    //   log.success(
-    //     `Committed to ${commit.branch}: ${chalk.bold(commit.commit.slice(0, 7))} ${chalk.dim(
-    //       `(${commit.summary.changes} changes, ${chalk.green(
-    //         "+" + commit.summary.insertions,
-    //       )}, ${chalk.red("-" + commit.summary.deletions)})`,
-    //     )}`,
-    //   );
-    // } catch (error) {
-    //   log.error(chalk.red("Commit failed"));
-    //   log.error(chalk.dim(JSON.stringify(error, null, 2)));
-    //   process.exit(1);
-    // }
+    let message = `${typeScopeBreaking ? `${chalk.bold(`${typeScopeBreaking}: `)}` : ""}${decapitalizedDescription}`;
+    if (commit.body?.length) message += `\n\n${commit.body}`;
+    if (commit.footers?.length) message += `\n\n${commit.footers.join("\n")}`;
+
+    try {
+      await git.add(commit.files);
+      log.success(`Staged ${commit.files.length} file${commit.files.length === 1 ? "" : "s"}`);
+    } catch (error) {
+      log.error(chalk.red("Well sh*t, couldn't stage the files"));
+      log.error(chalk.dim(JSON.stringify(error, null, 2)));
+      process.exit(1);
+    }
+
+    try {
+      const commitResult = await git.commit(message, commit.files);
+      log.success(
+        `Committed to ${commitResult.branch}: ${chalk.bold(commitResult.commit.slice(0, 7))} ${chalk.dim(
+          `(${commitResult.summary.changes} changes, ${chalk.green(
+            "+" + commitResult.summary.insertions,
+          )}, ${chalk.red("-" + commitResult.summary.deletions)})`,
+        )}`,
+      );
+    } catch (error) {
+      log.error(chalk.red("F*ck! The commit crashed and burned"));
+      log.error(chalk.dim(JSON.stringify(error, null, 2)));
+      process.exit(1);
+    }
 
     commitCount++;
   } else {
