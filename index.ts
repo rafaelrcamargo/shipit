@@ -141,13 +141,15 @@ for await (const commit of elementStream) {
   });
 
   if (shouldCommit) {
-    let message = `${typeScopeBreaking ? `${chalk.bold(`${typeScopeBreaking}: `)}` : ""}${decapitalizedDescription}`;
+    let message = `${typeScopeBreaking ? `${typeScopeBreaking}: ` : ""}${decapitalizedDescription}`;
     if (commit.body?.length) message += `\n\n${commit.body}`;
     if (commit.footers?.length) message += `\n\n${commit.footers.join("\n")}`;
 
     try {
       await git.add(commit.files);
-      log.success(`Staged ${commit.files.length} file${commit.files.length === 1 ? "" : "s"}`);
+      log.success(
+        `Staged ${commit.files.length} file${commit.files.length === 1 ? "" : "s"}`,
+      );
     } catch (error) {
       log.error(chalk.red("Well sh*t, couldn't stage the files"));
       log.error(chalk.dim(JSON.stringify(error, null, 2)));
