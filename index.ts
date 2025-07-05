@@ -65,7 +65,7 @@ const git = simpleGit(process.cwd());
 if (!(await git.checkIsRepo())) {
   analysisSpinner.stop("❌ Well, this is awkward...");
   outro(
-    "Not a git repo? What the f*ck are you trying to commit, your feelings? Run 'git init' first! 🤦",
+    "Not a git repo? What the f*ck are you trying to commit here? Run 'git init' first! 🤦",
   );
   process.exit(1);
 }
@@ -79,7 +79,7 @@ const {
 
 if (isClean()) {
   analysisSpinner.stop("Huh... squeaky clean. Nothing to see here.");
-  outro("No changes? Seriously? Stop procrastinating and write some code! 🙄");
+  outro("No changes? Nothing to commit here. Time to write some code! 🙄");
   process.exit(0);
 }
 
@@ -118,7 +118,7 @@ analysisSpinner.stop(
 
 const prompt = userInstruction(status, diffSummary, diff);
 
-log.info("Cooking up a spicy prompt for the AI overlords...");
+log.info("Cooking up a spicy prompt for the AI...");
 
 const tokenCountSpinner = spinner();
 tokenCountSpinner.start(
@@ -240,5 +240,5 @@ for await (const commit of elementStream) {
 }
 
 outro(
-  `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome. 🎤⬇️`,
+  `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome.`,
 );

@@ -7,7 +7,7 @@ export const categorizeChangesCount = (changesCount: number) => {
   if (changesCount < 10) return "Nice!";
   if (changesCount < 50) return chalk.bold("Damn, solid work!");
   if (changesCount < 100) return chalk.green("Holy sh*t, we cookin'!");
-  return chalk.red("F*ck me, better buy your reviewers some strong coffee!");
+  return chalk.red("F*ck me, better buy your reviewers some coffee!");
 };
 
 export const categorizeTokenCount = (tokenCount: number) => {
