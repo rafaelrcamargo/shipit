@@ -20,7 +20,7 @@ export default defineConfig([
     rules: {
       "perfectionist/sort-imports": "off",
       "@typescript-eslint/no-unused-vars": [
-        "error",
+        "warn",
         {
           argsIgnorePattern: "^_",
           varsIgnorePattern: "^_",
