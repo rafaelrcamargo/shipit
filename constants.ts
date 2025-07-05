@@ -159,7 +159,6 @@ ${diff}
 
 ## Commit Message:`;
 
-// Zod schema equivalent to responseSchema
 export const responseZodSchema = z.object({
   files: z
     .array(z.string())
@@ -195,6 +194,3 @@ export const responseZodSchema = z.object({
       "Array of footer strings (e.g., 'BREAKING CHANGE: ...', 'Closes #123')",
     ),
 });
-
-// Type inference from the Zod schema
-export type ResponseSchema = z.infer<typeof responseZodSchema>;

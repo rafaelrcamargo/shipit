@@ -5,9 +5,9 @@ export const decapitalizeFirstLetter = (str: string) =>
 
 export const categorizeChangesCount = (changesCount: number) => {
   if (changesCount < 10) return "Nice!";
-  if (changesCount < 50) return chalk.bold("Solid!");
-  if (changesCount < 100) return chalk.green("We cookin'!");
-  return chalk.red("Better buy your reviewers coffee!");
+  if (changesCount < 50) return chalk.bold("Damn, solid work!");
+  if (changesCount < 100) return chalk.green("Holy sh*t, we cookin'!");
+  return chalk.red("F*ck me, better buy your reviewers some strong coffee!");
 };
 
 export const categorizeTokenCount = (tokenCount: number) => {
@@ -19,17 +19,17 @@ export const categorizeTokenCount = (tokenCount: number) => {
   } else if (tokenCount < 15000) {
     return {
       emoji: "🟡",
-      label: `totally fine ${chalk.dim("(1-2 seconds)")}`,
+      label: `still vibing ${chalk.dim("(1-2 seconds)")}`,
     };
   } else if (tokenCount < 50000) {
     return {
       emoji: "🟠",
-      label: `still good ${chalk.dim("(3-5 seconds)")}`,
+      label: `getting spicy ${chalk.dim("(3-5 seconds)")}`,
     };
   } else if (tokenCount < 100000) {
     return {
       emoji: "🔴",
-      label: `yikes territory ${chalk.dim("(may hit rate limits)")}`,
+      label: `holy sh*t territory ${chalk.dim("(may hit rate limits)")}`,
       description: "This will take 10+ seconds and cost significantly more.",
       needsConfirmation: true,
     };
@@ -49,29 +49,33 @@ export const wrapText = (text: string, maxWidth: number = 80): string => {
   let currentLine = "";
 
   for (const word of words) {
-    // If adding this word would exceed maxWidth
-    if (
-      currentLine.length + word.length + (currentLine.length > 0 ? 1 : 0) >
-      maxWidth
-    ) {
-      // If current line is not empty, push it and start a new line
+    const spaceNeeded = currentLine.length > 0 ? 1 : 0;
+    const wouldExceedWidth =
+      currentLine.length + word.length + spaceNeeded > maxWidth;
+
+    if (wouldExceedWidth) {
       if (currentLine.length > 0) {
         lines.push(currentLine);
         currentLine = word;
       } else {
-        // If the word itself is longer than maxWidth, we have to add it as its own line
         lines.push(word);
       }
     } else {
-      // Add word to current line
       currentLine += (currentLine.length > 0 ? " " : "") + word;
     }
   }
-
-  // Don't forget the last line
   if (currentLine.length > 0) {
     lines.push(currentLine);
   }
 
   return lines.join("\n");
+};
+
+export const pluralize = (
+  count: number,
+  singular: string,
+  plural?: string,
+): string => {
+  if (count === 1) return singular;
+  return plural || `${singular}s`;
 };
