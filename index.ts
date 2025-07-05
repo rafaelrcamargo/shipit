@@ -1,22 +1,52 @@
-// --force --unsafe (-fu)
-
 import { google } from "@ai-sdk/google";
-import { confirm, log, note, outro, spinner } from "@clack/prompts";
 import { streamObject } from "ai";
+import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
+import { createClack } from "./clack.ts";
 import {
   responseZodSchema,
   systemInstruction,
   userInstruction,
 } from "./constants.ts";
+import { version } from "./package.json" with { type: "json" };
 import {
   categorizeChangesCount,
   categorizeTokenCount,
   decapitalizeFirstLetter,
+  pluralize,
   wrapText,
 } from "./utils.ts";
+
+// Create CLI command and parse arguments
+const cli = new CAC();
+
+cli
+  .command(
+    "[...files]",
+    "Create a new commit containing the current contents of the index and generate a log message describing the changes.",
+  )
+  .option("-f,--force", "Auto accept all commits and skip confirmation")
+  .option("-u,--unsafe", "Skip token count verification")
+  .option(
+    "-s,--silent",
+    "No output is logged to the console, except fatal errors",
+  );
+
+cli.help();
+cli.version(version);
+
+const { args, options } = cli.parse();
+
+// Early exit if help or version is requested
+if (options.help || options.version) process.exit(0);
+
+// We wrap the clack library in a function to allow for silent mode and force mode
+const { log, note, outro, spinner, confirm } = createClack({
+  silent: options.silent,
+  force: options.force,
+});
 
 note(
   chalk.italic("Because writing 'fix stuff' gets old real quick..."),
@@ -28,30 +58,62 @@ log.info("Let's see what mess you've made this time...");
 const analysisSpinner = spinner();
 analysisSpinner.start("Snooping around your repo...");
 
-const git = simpleGit("../../clerk/migration-thing");
+// Initialize git instance on the current working directory
+const git = simpleGit(process.cwd());
+
+// Check if the current directory is a git repository
+if (!(await git.checkIsRepo())) {
+  analysisSpinner.stop("❌ Well, this is awkward...");
+  outro(
+    "Not a git repo? What the f*ck are you trying to commit, your feelings? Run 'git init' first! 🤦",
+  );
+  process.exit(1);
+}
 
 analysisSpinner.message("Checking the damage...");
 const {
   files: _files,
-  isClean: _isClean,
-  ...statusResult
-} = await git.status();
-const status = statusResult;
+  isClean,
+  ...status
+} = await git.status(args as string[]);
 
-analysisSpinner.message("Tallying up your changes...");
-const diffSummary = await git.diffSummary();
-
-analysisSpinner.message("Grabbing all the juicy details...");
-const diff = await git.diff();
-
-if (!diffSummary.files.length) {
+if (isClean()) {
   analysisSpinner.stop("Huh... squeaky clean. Nothing to see here.");
   outro("No changes? Seriously? Stop procrastinating and write some code! 🙄");
   process.exit(0);
 }
 
+if (status.conflicted && status.conflicted.length > 0) {
+  analysisSpinner.stop("💥 You have merge conflicts!");
+  outro(
+    `Holy sh*t! Fix your ${status.conflicted.length} ${pluralize(status.conflicted.length, "conflict")} first: ${status.conflicted.join(", ")}`,
+  );
+  process.exit(1);
+}
+
+if (args.length > 0) {
+  analysisSpinner.message("Sniffing out your specified paths...");
+
+  if (status.staged && status.staged.length > 0) {
+    analysisSpinner.stop("⚠️  Hold up! Mixed signals detected!");
+    outro(`You've got staged files AND specified paths? That's a recipe for disaster.
+
+Pick a lane:
+- Unstage your sh*t: git reset
+- Commit the staged stuff first: git commit
+- Or YOLO it without paths to handle everything`);
+    process.exit(1);
+  }
+}
+
+analysisSpinner.message("Counting your sins...");
+const diffSummary = await git.diffSummary(args as string[]);
+
+analysisSpinner.message("Grabbing all the juicy details...");
+const diff = await git.diff(args as string[]);
+
 analysisSpinner.stop(
-  `${categorizeChangesCount(diffSummary.files.length)} Holy sh*t, you touched ${chalk.bold(`${diffSummary.files.length} file${diffSummary.files.length === 1 ? "" : "s"}`)}!`,
+  `${categorizeChangesCount(diffSummary.files.length)} You've touched ${chalk.bold(`${diffSummary.files.length} ${pluralize(diffSummary.files.length, "file")}`)}!`,
 );
 
 const prompt = userInstruction(status, diffSummary, diff);
@@ -70,7 +132,7 @@ tokenCountSpinner.stop(
   `${category.emoji ? `${category.emoji} ` : ""}That's ${chalk.bold(`~${actualTokenCount} tokens`)} of pure chaos, ${category.label}`,
 );
 
-if (category.needsConfirmation) {
+if (category.needsConfirmation && !options.unsafe) {
   const shouldContinue = await confirm({
     message: `${chalk.bold(`${category.emoji ? `${category.emoji} ` : ""}Whoa there!`)} ${category.description}. ${chalk.italic.dim("You sure you want to burn those tokens?")}`,
     initialValue: false,
@@ -94,46 +156,45 @@ const { elementStream } = streamObject({
 });
 
 const commitSpinner = spinner();
-commitSpinner.start("Making commit messages that don't suck...");
+commitSpinner.start("Crafting commit messages that don't suck...");
 
 let commitCount = 0;
 for await (const commit of elementStream) {
   log.message("", { symbol: chalk.gray("│") });
   if (commitCount === 0) {
-    commitSpinner.stop("Here come the goods...");
+    commitSpinner.stop("Hot damn! Here come the goods...");
   } else {
-    log.info("Another one coming in hot...");
+    log.info("Oh sh*t, another banger incoming...");
   }
 
-  const decapitalizedDescription = decapitalizeFirstLetter(commit.description);
-  let typeScopeBreaking = `${commit.type}${commit.scope?.length ? `(${commit.scope})` : ""}${commit.breaking ? "!" : ""}`;
-  if (decapitalizedDescription.startsWith(typeScopeBreaking)) {
-    typeScopeBreaking = "";
+  const description = decapitalizeFirstLetter(commit.description);
+  let prefix = `${commit.type}${commit.scope?.length ? `(${commit.scope})` : ""}${commit.breaking ? "!" : ""}`;
+
+  if (description.startsWith(prefix)) {
+    prefix = "";
   }
+
+  const displayMessage = `${prefix ? `${chalk.bold(`${prefix}: `)}` : ""}${description}`;
+  const commitMessage = `${prefix ? `${prefix}: ` : ""}${description}`;
 
   log.message(chalk.gray("━━━"), { symbol: chalk.gray("│") });
-  log.message(
-    `${typeScopeBreaking ? `${chalk.bold(`${typeScopeBreaking}: `)}` : ""}${decapitalizedDescription}`,
-    { symbol: chalk.gray("│") },
-  );
+  log.message(displayMessage, { symbol: chalk.gray("│") });
+
   if (commit.body?.length) {
-    log.message(chalk.dim(wrapText(commit.body)), {
-      symbol: chalk.gray("│"),
-    });
+    log.message(chalk.dim(wrapText(commit.body)), { symbol: chalk.gray("│") });
   }
+
   if (commit.footers?.length) {
     log.message(
       `${commit.footers.map((footer) => wrapText(footer)).join("\n")}`,
       { symbol: chalk.gray("│") },
     );
   }
-  log.message(chalk.gray("━━━"), { symbol: chalk.gray("│") });
 
+  log.message(chalk.gray("━━━"), { symbol: chalk.gray("│") });
   log.message(
-    `Applies to these ${chalk.bold(`${commit.files.length} file${commit.files.length === 1 ? "" : "s"}`)}: ${chalk.dim(wrapText(commit.files.join(", ")))}`,
-    {
-      symbol: chalk.gray("│"),
-    },
+    `Applies to these ${chalk.bold(`${commit.files.length} ${pluralize(commit.files.length, "file")}`)}: ${chalk.dim(wrapText(commit.files.join(", ")))}`,
+    { symbol: chalk.gray("│") },
   );
 
   const shouldCommit = await confirm({
@@ -141,25 +202,26 @@ for await (const commit of elementStream) {
   });
 
   if (shouldCommit) {
-    let message = `${typeScopeBreaking ? `${typeScopeBreaking}: ` : ""}${decapitalizedDescription}`;
+    let message = commitMessage;
     if (commit.body?.length) message += `\n\n${commit.body}`;
     if (commit.footers?.length) message += `\n\n${commit.footers.join("\n")}`;
 
     try {
       await git.add(commit.files);
       log.success(
-        `Staged ${commit.files.length} file${commit.files.length === 1 ? "" : "s"}`,
+        `Staged ${commit.files.length} ${pluralize(commit.files.length, "file")}`,
       );
     } catch (error) {
       log.error(chalk.red("Well sh*t, couldn't stage the files"));
-      log.error(chalk.dim(JSON.stringify(error, null, 2)));
+      log.error(error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
 
     try {
+      const COMMIT_HASH_LENGTH = 7;
       const commitResult = await git.commit(message, commit.files);
       log.success(
-        `Committed to ${commitResult.branch}: ${chalk.bold(commitResult.commit.slice(0, 7))} ${chalk.dim(
+        `Committed to ${commitResult.branch}: ${chalk.bold(commitResult.commit.slice(0, COMMIT_HASH_LENGTH))} ${chalk.dim(
           `(${commitResult.summary.changes} changes, ${chalk.green(
             "+" + commitResult.summary.insertions,
           )}, ${chalk.red("-" + commitResult.summary.deletions)})`,
@@ -167,16 +229,16 @@ for await (const commit of elementStream) {
       );
     } catch (error) {
       log.error(chalk.red("F*ck! The commit crashed and burned"));
-      log.error(chalk.dim(JSON.stringify(error, null, 2)));
+      log.error(error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
 
     commitCount++;
   } else {
-    log.info("Your loss. Moving on...");
+    log.info("Your loss, champ. Next!");
   }
 }
 
 outro(
-  `Boom! ${commitCount} commit(s) that actually make sense. You're welcome. 🎤⬇️`,
+  `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome. 🎤⬇️`,
 );

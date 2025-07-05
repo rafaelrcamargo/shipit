@@ -1,7 +1,7 @@
 {
   "name": "git-thing",
+  "version": "0.1.0",
   "type": "module",
-  "private": true,
   "packageManager": "pnpm@9.7.0+sha512.dc09430156b427f5ecfc79888899e1c39d2d690f004be70e05230b72cb173d96839587545d09429b55ac3c429c801b4dc3c0e002f653830a420fa2dd4e3cf9cf",
   "module": "index.ts",
   "scripts": {
@@ -16,6 +16,7 @@
     "@ai-sdk/google": "^2.0.0-canary.20",
     "@clack/prompts": "1.0.0-alpha.1",
     "ai": "^5.0.0-canary.24",
+    "cac": "^6.7.14",
     "chalk": "^5.4.1",
     "gpt-tokenizer": "^3.0.1",
     "simple-git": "^3.28.0",
