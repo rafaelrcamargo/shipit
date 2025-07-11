@@ -1,21 +1,25 @@
 # git-thing
 
-To install dependencies:
+To compile the project, run:
 
 ```bash
-bun install
+bun run build
 ```
 
-To run:
+> [!IMPORTANT]
+>
+> Make sure you have your `GOOGLE_GENERATIVE_AI_API_KEY` environment variable set before running the tool. More info at: <https://aistudio.google.com/app/apikey>
+
+Then move it to `/usr/local/bin`:
 
 ```bash
-bun run index.ts
+sudo mv build/git-thing /usr/local/bin/git-thing
 ```
 
-This project was created using `bun init` in bun v1.2.14. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
-
-<!--
-  - add a link to a PR on github to the current branch, if not main or master
-  - add a title to the PR, the title should make sense of the changes
-  - add a description to the PR, the description should be a summary of the changes
--->
+> [!TIP]
+>
+> You can add a alias to your shell configuration file (e.g., `.bashrc`, `.zshrc`) to make it easier to run the tool:
+>
+> ```bash
+>   alias gt="git-thing"
+> ```
