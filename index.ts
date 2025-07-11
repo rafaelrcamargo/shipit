@@ -310,7 +310,6 @@ Pick a lane:
         }),
         prompt: prPrompt,
       });
-      console.log(prInfo);
 
       prSpinner.stop("✨ PR info generated!");
 
