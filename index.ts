@@ -292,7 +292,7 @@ Pick a lane:
       const prPrompt = `Based on these commits, generate a concise PR title and a detailed PR body that explains the changes:
 
   Commits:
-  ${commits.all.map((c) => c.message).join("\n\n")}
+  ${commits.all.map((c) => c.hash).join("\n\n")}
 
   Generate:
   1. A PR title (max 72 chars) that summarizes all changes
