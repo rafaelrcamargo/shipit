@@ -257,20 +257,41 @@ Pick a lane:
         return;
       }
 
-      // Check if we have unpushed commits
-      const unpushedCommits = await git.log([
-        `origin/${branch}..${branch}`,
-        "--oneline",
-      ]);
-      console.log(unpushedCommits);
+      // Determine the base branch (main or master)
+      let baseBranch = "main";
+      try {
+        await git.revparse(["--verify", "origin/main"]);
+      } catch {
+        try {
+          await git.revparse(["--verify", "origin/master"]);
+          baseBranch = "master";
+        } catch {
+          log.info("No main or master branch found. Skipping PR creation.");
+          return;
+        }
+      }
 
-      if (unpushedCommits.total === 0) {
-        log.info("No unpushed commits. Push your changes first!");
+      // Skip PR creation if we're on the base branch
+      if (branch === baseBranch) {
+        log.info(`Already on ${baseBranch} branch. No PR needed.`);
         return;
       }
 
+      // Get all commits on this branch that aren't on the base branch
+      const branchCommits = await git.log([
+        `origin/${baseBranch}..HEAD`,
+        "--oneline",
+      ]);
+
+      if (branchCommits.total === 0) {
+        log.info(`No commits ahead of ${baseBranch}. Nothing to PR.`);
+        return;
+      }
+
+      console.log(branchCommits);
+
       const shouldCreatePR = await confirm({
-        message: "Want me to cook up a PR for these commits?",
+        message: `Want me to cook up a PR for ${branchCommits.total} ${pluralize(branchCommits.total, "commit")}?`,
         initialValue: true,
       });
 
@@ -278,28 +299,75 @@ Pick a lane:
         return;
       }
 
+      // Check if we need to push commits
+      try {
+        const unpushedCommits = await git.log([
+          `origin/${branch}..HEAD`,
+          "--oneline",
+        ]);
+
+        if (unpushedCommits.total > 0) {
+          const shouldPush = await confirm({
+            message: `Push ${unpushedCommits.total} unpushed ${pluralize(unpushedCommits.total, "commit")} to origin/${branch}?`,
+            initialValue: true,
+          });
+
+          if (!shouldPush) {
+            log.info(
+              "Skipping push. You'll need to push manually before creating the PR.",
+            );
+            return;
+          }
+
+          const pushSpinner = spinner();
+          pushSpinner.start(
+            `Pushing ${unpushedCommits.total} ${pluralize(unpushedCommits.total, "commit")} to origin/${branch}...`,
+          );
+
+          await git.push("origin", branch);
+          pushSpinner.stop("✅ Commits pushed successfully!");
+        }
+      } catch (error) {
+        log.error(
+          "Failed to push commits. You'll need to push manually first.",
+        );
+        log.error(error instanceof Error ? error.message : String(error));
+        return;
+      }
+
       const prSpinner = spinner();
       prSpinner.start("Summoning the AI to write your PR...");
 
-      // Get the commit messages we just created
+      // Get detailed commit info for the PR
       const commits = await git.log([
-        `origin/${branch}..${branch}`,
-        "--pretty=format:%s%n%n%b%n---",
+        `origin/${baseBranch}..HEAD`,
+        "--pretty=format:%H|%s|%b|--END--",
       ]);
-      console.log(commits);
+
+      // Format commits for the prompt
+      const formattedCommits = commits.all.map((commit) => {
+        const [hash, subject, ...bodyParts] = commit.hash.split("|");
+        const body = bodyParts.join("|").replace("|--END--", "").trim();
+        return {
+          hash: hash?.substring(0, 7) || commit.hash.substring(0, 7),
+          subject: subject || "",
+          body: body || undefined,
+        };
+      });
 
       // Create a prompt for PR generation
       const prPrompt = `Based on these commits, generate a concise PR title and a detailed PR body that explains the changes:
 
-  Commits:
-  ${commits.all.map((c) => c.hash).join("\n\n")}
+Commits:
+${formattedCommits.map((c) => `- ${c.subject}${c.body ? `\n  ${c.body.split("\n").join("\n  ")}` : ""}`).join("\n")}
 
-  Generate:
-  1. A PR title (max 72 chars) that summarizes all changes
-  2. A PR body that:
-     - Summarizes what changed and why
-     - Lists the key changes as bullet points
-     - Mentions any breaking changes or important notes`;
+Generate:
+1. A PR title (max 72 chars) that summarizes all changes
+2. A PR body that:
+   - Summarizes what changed and why
+   - Lists the key changes as bullet points
+   - Mentions any breaking changes or important notes
+   - Is written in markdown format`;
       console.log(prPrompt);
 
       const { object: prInfo } = await generateObject({
@@ -330,33 +398,20 @@ Pick a lane:
         return;
       }
 
-      // Push the commits first
-      const pushSpinner = spinner();
-      pushSpinner.start(`Pushing your commits to origin/${branch}...`);
-
-      try {
-        await git.push("origin", branch);
-        pushSpinner.stop("✅ Commits pushed successfully!");
-      } catch (error) {
-        pushSpinner.stop("❌ Failed to push commits");
-        log.error(
-          "Could not push commits. You'll need to push manually first.",
-        );
-        log.error(error instanceof Error ? error.message : String(error));
-        return;
-      }
-
-      // Create a temporary file with the PR body for gh CLI
+      // Create PR using gh CLI
       const tempFile = `/tmp/pr-body-${Date.now()}.md`;
-      await Bun.write(tempFile, prInfo.body);
 
       try {
+        await Bun.write(tempFile, prInfo.body);
+
         // Use gh pr create --web to open in browser with pre-filled content
         const proc = Bun.spawn(
           [
             "gh",
             "pr",
             "create",
+            "--base",
+            baseBranch,
             "--title",
             prInfo.title,
             "--body-file",
@@ -372,31 +427,45 @@ Pick a lane:
         const output = await new Response(proc.stdout).text();
         const errors = await new Response(proc.stderr).text();
 
-        if (errors) {
+        if (errors && !errors.includes("Opening")) {
           log.error(`GitHub CLI error: ${errors}`);
         }
 
-        // Clean up temp file
-        await Bun.$`rm -f ${tempFile}`;
-
-        if (output.includes("Opening") || output.includes("https://")) {
+        if (
+          output.includes("Opening") ||
+          output.includes("https://") ||
+          errors.includes("Opening")
+        ) {
           log.success(
             "🚀 PR draft opened in your browser! Edit and create when ready.",
           );
 
           // Try to extract and display the URL
-          const urlMatch = output.match(/https:\/\/[^\s]+/);
+          const urlMatch = (output + errors).match(/https:\/\/[^\s]+/);
           if (urlMatch) {
             log.info(`URL: ${chalk.cyan(urlMatch[0])}`);
           }
         }
       } catch (error) {
-        // Clean up temp file on error
-        await Bun.$`rm -f ${tempFile}`;
         log.error(
           "Failed to open PR in browser. You might need to install 'gh' CLI or authenticate.",
         );
         log.error(error instanceof Error ? error.message : String(error));
+
+        // Show manual instructions
+        log.info("");
+        log.info("To create the PR manually:");
+        log.info(
+          `1. Go to: ${remoteUrl.replace(".git", "")}/compare/${baseBranch}...${branch}`,
+        );
+        log.info("2. Use the title and body shown above");
+      } finally {
+        // Always clean up temp file
+        try {
+          await Bun.$`rm -f ${tempFile}`;
+        } catch {
+          // Ignore cleanup errors
+        }
       }
     } catch (error) {
       log.error("Failed to check git status for PR creation");
