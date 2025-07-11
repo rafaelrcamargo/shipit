@@ -259,15 +259,21 @@ Pick a lane:
 
       // Check if we're on main/master branch
       if (branch === "main" || branch === "master") {
-        log.info("Oops! You're on the main branch. Can't create a PR from here!");
+        log.info(
+          "Oops! You're on the main branch. Can't create a PR from here!",
+        );
         log.info("");
         log.info("To move your commits to a new branch:");
-        log.info(`1. Create a new branch: ${chalk.cyan("git checkout -b feature/your-feature-name")}`);
+        log.info(
+          `1. Create a new branch: ${chalk.cyan("git checkout -b feature/your-feature-name")}`,
+        );
         log.info(`2. The commits will move with you to the new branch`);
         log.info(`3. Then run this tool again to create the PR`);
         log.info("");
         log.info("If you want to keep main clean, you can later:");
-        log.info(`- ${chalk.cyan("git checkout main && git reset --hard origin/main")}`);
+        log.info(
+          `- ${chalk.cyan("git checkout main && git reset --hard origin/main")}`,
+        );
         return;
       }
 
@@ -354,7 +360,9 @@ Pick a lane:
         pushSpinner.stop("✅ Commits pushed successfully!");
       } catch (error) {
         pushSpinner.stop("❌ Failed to push commits");
-        log.error("Could not push commits. You'll need to push manually first.");
+        log.error(
+          "Could not push commits. You'll need to push manually first.",
+        );
         log.error(error instanceof Error ? error.message : String(error));
         return;
       }
