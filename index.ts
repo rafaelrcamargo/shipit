@@ -339,27 +339,13 @@ Pick a lane:
       prSpinner.start("Summoning the AI to write your PR...");
 
       // Get detailed commit info for the PR
-      const commits = await git.log([
-        `origin/${baseBranch}..HEAD`,
-        "--pretty=format:%H|%s|%b|--END--",
-      ]);
-
-      // Format commits for the prompt
-      const formattedCommits = commits.all.map((commit) => {
-        const [hash, subject, ...bodyParts] = commit.hash.split("|");
-        const body = bodyParts.join("|").replace("|--END--", "").trim();
-        return {
-          hash: hash?.substring(0, 7) || commit.hash.substring(0, 7),
-          subject: subject || "",
-          body: body || undefined,
-        };
-      });
-
+      const commits = await git.log([`origin/${baseBranch}..HEAD`]);
+      console.log(commits);
       // Create a prompt for PR generation
       const prPrompt = `Based on these commits, generate a concise PR title and a detailed PR body that explains the changes:
 
 Commits:
-${formattedCommits.map((c) => `- ${c.subject}${c.body ? `\n  ${c.body.split("\n").join("\n  ")}` : ""}`).join("\n")}
+${commits.all.map((c) => `- ${c.message}`).join("\n")}
 
 Generate:
 1. A PR title (max 72 chars) that summarizes all changes
