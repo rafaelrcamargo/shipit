@@ -257,6 +257,20 @@ Pick a lane:
         return;
       }
 
+      // Check if we're on main/master branch
+      if (branch === "main" || branch === "master") {
+        log.info("Oops! You're on the main branch. Can't create a PR from here!");
+        log.info("");
+        log.info("To move your commits to a new branch:");
+        log.info(`1. Create a new branch: ${chalk.cyan("git checkout -b feature/your-feature-name")}`);
+        log.info(`2. The commits will move with you to the new branch`);
+        log.info(`3. Then run this tool again to create the PR`);
+        log.info("");
+        log.info("If you want to keep main clean, you can later:");
+        log.info(`- ${chalk.cyan("git checkout main && git reset --hard origin/main")}`);
+        return;
+      }
+
       // Check if we have unpushed commits
       const unpushedCommits = await git.log([
         `origin/${branch}..${branch}`,
@@ -284,7 +298,7 @@ Pick a lane:
       // Get the commit messages we just created
       const commits = await git.log([
         `origin/${branch}..${branch}`,
-        "--pretty=format:%s%n%n%b%n---",
+        "--pretty=format:%H%n%s%n%b%n---",
       ]);
       console.log(commits);
 
@@ -292,7 +306,7 @@ Pick a lane:
       const prPrompt = `Based on these commits, generate a concise PR title and a detailed PR body that explains the changes:
 
   Commits:
-  ${commits.all.map((c) => c.hash).join("\n\n")}
+  ${commits.all.map((c) => c.message).join("\n\n")}
 
   Generate:
   1. A PR title (max 72 chars) that summarizes all changes
@@ -328,6 +342,20 @@ Pick a lane:
       });
 
       if (!confirmPR) {
+        return;
+      }
+
+      // Push the commits first
+      const pushSpinner = spinner();
+      pushSpinner.start(`Pushing your commits to origin/${branch}...`);
+
+      try {
+        await git.push("origin", branch);
+        pushSpinner.stop("✅ Commits pushed successfully!");
+      } catch (error) {
+        pushSpinner.stop("❌ Failed to push commits");
+        log.error("Could not push commits. You'll need to push manually first.");
+        log.error(error instanceof Error ? error.message : String(error));
         return;
       }
 
