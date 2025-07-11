@@ -1,9 +1,10 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { streamObject } from "ai";
+import { generateObject, streamObject } from "ai";
 import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
+import { z } from "zod";
 import { createClack } from "./clack.ts";
 import {
   responseZodSchema,
@@ -18,7 +19,6 @@ import {
   pluralize,
   wrapText,
 } from "./utils.ts";
-import { z } from "zod";
 
 const cli = new CAC();
 
@@ -246,16 +246,12 @@ Pick a lane:
     }
   }
 
-  outro(
-    `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome.`,
-  );
-
   if (commitCount > 0) {
     // Check if we have a remote and are on a branch that can create PRs
     try {
       const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
       const { value: remoteUrl } = await git.getConfig("remote.origin.url");
-
+      console.log(remoteUrl);
       if (!remoteUrl) {
         log.info("No remote origin found. Skipping PR creation.");
         return;
@@ -264,8 +260,9 @@ Pick a lane:
       // Check if we have unpushed commits
       const unpushedCommits = await git.log([
         `origin/${branch}..${branch}`,
-        "--oneline"
+        "--oneline",
       ]);
+      console.log(unpushedCommits);
 
       if (unpushedCommits.total === 0) {
         log.info("No unpushed commits. Push your changes first!");
@@ -293,17 +290,18 @@ Pick a lane:
       // Create a prompt for PR generation
       const prPrompt = `Based on these commits, generate a concise PR title and a detailed PR body that explains the changes:
 
-Commits:
-${commits.all.map(c => c.message).join('\n\n')}
+  Commits:
+  ${commits.all.map((c) => c.message).join("\n\n")}
 
-Generate:
-1. A PR title (max 72 chars) that summarizes all changes
-2. A PR body that:
-   - Summarizes what changed and why
-   - Lists the key changes as bullet points
-   - Mentions any breaking changes or important notes`;
+  Generate:
+  1. A PR title (max 72 chars) that summarizes all changes
+  2. A PR body that:
+     - Summarizes what changed and why
+     - Lists the key changes as bullet points
+     - Mentions any breaking changes or important notes`;
+      console.log(prPrompt);
 
-      const { object } = streamObject({
+      const { object: prInfo } = await generateObject({
         model: google("gemini-2.5-flash"),
         schema: z.object({
           title: z.string().describe("PR title, max 72 characters"),
@@ -311,8 +309,7 @@ Generate:
         }),
         prompt: prPrompt,
       });
-
-      const prInfo = await object;
+      console.log(prInfo);
 
       prSpinner.stop("✨ PR info generated!");
 
@@ -339,19 +336,22 @@ Generate:
 
       try {
         // Use gh pr create --web to open in browser with pre-filled content
-        const proc = Bun.spawn([
-          "gh",
-          "pr",
-          "create",
-          "--title",
-          prInfo.title,
-          "--body-file",
-          tempFile,
-          "--web"
-        ], {
-          stdout: "pipe",
-          stderr: "pipe",
-        });
+        const proc = Bun.spawn(
+          [
+            "gh",
+            "pr",
+            "create",
+            "--title",
+            prInfo.title,
+            "--body-file",
+            tempFile,
+            "--web",
+          ],
+          {
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
 
         const output = await new Response(proc.stdout).text();
         const errors = await new Response(proc.stderr).text();
@@ -364,7 +364,9 @@ Generate:
         await Bun.$`rm -f ${tempFile}`;
 
         if (output.includes("Opening") || output.includes("https://")) {
-          log.success("🚀 PR draft opened in your browser! Edit and create when ready.");
+          log.success(
+            "🚀 PR draft opened in your browser! Edit and create when ready.",
+          );
 
           // Try to extract and display the URL
           const urlMatch = output.match(/https:\/\/[^\s]+/);
@@ -375,7 +377,9 @@ Generate:
       } catch (error) {
         // Clean up temp file on error
         await Bun.$`rm -f ${tempFile}`;
-        log.error("Failed to open PR in browser. You might need to install 'gh' CLI or authenticate.");
+        log.error(
+          "Failed to open PR in browser. You might need to install 'gh' CLI or authenticate.",
+        );
         log.error(error instanceof Error ? error.message : String(error));
       }
     } catch (error) {
@@ -383,6 +387,10 @@ Generate:
       log.error(error instanceof Error ? error.message : String(error));
     }
   }
+
+  outro(
+    `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome.`,
+  );
 }
 
 main();
