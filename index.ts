@@ -18,6 +18,7 @@ import {
   pluralize,
   wrapText,
 } from "./utils.ts";
+import { z } from "zod";
 
 const cli = new CAC();
 
@@ -59,7 +60,6 @@ async function main() {
   analysisSpinner.start("Snooping around your repo...");
 
   // Initialize git instance on the current working directory
-  console.log(process.cwd());
   const git = simpleGit(process.cwd());
 
   // Check if the current directory is a git repository
@@ -150,7 +150,6 @@ Pick a lane:
   const google = createGoogleGenerativeAI({
     apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
   });
-  console.log(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 
   const { elementStream } = streamObject({
     model: google("gemini-2.5-flash"),
@@ -247,17 +246,143 @@ Pick a lane:
     }
   }
 
-  // if (commitCount > 0) {
-  // gh pr create --base my-base-branch --head my-changed-branch --assignee "@octocat" --title "The bug is fixed" --body "Everything works again" --label "bug,help wanted" --web
-  // const { value: remoteUrl } = await git.getConfig("remote.origin.url");
-  // const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
-  // const proc = Bun.spawn(["gh", "pr", "create", "--fill", "--web"]);
-  // await proc.exited;
-  // }
-
   outro(
     `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome.`,
   );
+
+  if (commitCount > 0) {
+    // Check if we have a remote and are on a branch that can create PRs
+    try {
+      const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
+      const { value: remoteUrl } = await git.getConfig("remote.origin.url");
+
+      if (!remoteUrl) {
+        log.info("No remote origin found. Skipping PR creation.");
+        return;
+      }
+
+      // Check if we have unpushed commits
+      const unpushedCommits = await git.log([
+        `origin/${branch}..${branch}`,
+        "--oneline"
+      ]);
+
+      if (unpushedCommits.total === 0) {
+        log.info("No unpushed commits. Push your changes first!");
+        return;
+      }
+
+      const shouldCreatePR = await confirm({
+        message: "Want me to cook up a PR for these commits?",
+        initialValue: true,
+      });
+
+      if (!shouldCreatePR) {
+        return;
+      }
+
+      const prSpinner = spinner();
+      prSpinner.start("Summoning the AI to write your PR...");
+
+      // Get the commit messages we just created
+      const commits = await git.log([
+        `origin/${branch}..${branch}`,
+        "--pretty=format:%s%n%n%b%n---",
+      ]);
+
+      // Create a prompt for PR generation
+      const prPrompt = `Based on these commits, generate a concise PR title and a detailed PR body that explains the changes:
+
+Commits:
+${commits.all.map(c => c.message).join('\n\n')}
+
+Generate:
+1. A PR title (max 72 chars) that summarizes all changes
+2. A PR body that:
+   - Summarizes what changed and why
+   - Lists the key changes as bullet points
+   - Mentions any breaking changes or important notes`;
+
+      const { object } = streamObject({
+        model: google("gemini-2.5-flash"),
+        schema: z.object({
+          title: z.string().describe("PR title, max 72 characters"),
+          body: z.string().describe("PR body with markdown formatting"),
+        }),
+        prompt: prPrompt,
+      });
+
+      const prInfo = await object;
+
+      prSpinner.stop("✨ PR info generated!");
+
+      log.message("");
+      log.message(chalk.bold("PR Title:"));
+      log.message(prInfo.title);
+      log.message("");
+      log.message(chalk.bold("PR Body:"));
+      log.message(prInfo.body);
+      log.message("");
+
+      const confirmPR = await confirm({
+        message: "Look good? Let's open it in your browser to edit and create!",
+        initialValue: true,
+      });
+
+      if (!confirmPR) {
+        return;
+      }
+
+      // Create a temporary file with the PR body for gh CLI
+      const tempFile = `/tmp/pr-body-${Date.now()}.md`;
+      await Bun.write(tempFile, prInfo.body);
+
+      try {
+        // Use gh pr create --web to open in browser with pre-filled content
+        const proc = Bun.spawn([
+          "gh",
+          "pr",
+          "create",
+          "--title",
+          prInfo.title,
+          "--body-file",
+          tempFile,
+          "--web"
+        ], {
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+
+        const output = await new Response(proc.stdout).text();
+        const errors = await new Response(proc.stderr).text();
+
+        if (errors) {
+          log.error(`GitHub CLI error: ${errors}`);
+        }
+
+        // Clean up temp file
+        await Bun.$`rm -f ${tempFile}`;
+
+        if (output.includes("Opening") || output.includes("https://")) {
+          log.success("🚀 PR draft opened in your browser! Edit and create when ready.");
+
+          // Try to extract and display the URL
+          const urlMatch = output.match(/https:\/\/[^\s]+/);
+          if (urlMatch) {
+            log.info(`URL: ${chalk.cyan(urlMatch[0])}`);
+          }
+        }
+      } catch (error) {
+        // Clean up temp file on error
+        await Bun.$`rm -f ${tempFile}`;
+        log.error("Failed to open PR in browser. You might need to install 'gh' CLI or authenticate.");
+        log.error(error instanceof Error ? error.message : String(error));
+      }
+    } catch (error) {
+      log.error("Failed to check git status for PR creation");
+      log.error(error instanceof Error ? error.message : String(error));
+    }
+  }
 }
 
 main();
