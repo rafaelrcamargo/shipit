@@ -4,9 +4,10 @@ import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
-import { z } from "zod";
 import { createClack } from "./clack.ts";
 import {
+  prInstruction,
+  prZodSchema,
   responseZodSchema,
   systemInstruction,
   userInstruction,
@@ -253,7 +254,7 @@ Pick a lane:
       const { value: remoteUrl } = await git.getConfig("remote.origin.url");
 
       if (!remoteUrl) {
-        log.info("No remote origin found. Skipping PR creation.");
+        log.info("No remote? No PR. Push your code somewhere first! 🤷");
         return;
       }
 
@@ -266,14 +267,14 @@ Pick a lane:
           await git.revparse(["--verify", "origin/master"]);
           baseBranch = "master";
         } catch {
-          log.info("No main or master branch found. Skipping PR creation.");
+          log.info("No main or master branch? What kind of repo is this? 🤔");
           return;
         }
       }
 
       // Skip PR creation if we're on the base branch
       if (branch === baseBranch) {
-        log.info(`Already on ${baseBranch} branch. No PR needed.`);
+        log.info(`You're on ${baseBranch} already. No PR needed, champ! 👑`);
         return;
       }
 
@@ -284,11 +285,9 @@ Pick a lane:
       ]);
 
       if (branchCommits.total === 0) {
-        log.info(`No commits ahead of ${baseBranch}. Nothing to PR.`);
+        log.info(`No commits ahead of ${baseBranch}? Nothing to PR here! 🤷`);
         return;
       }
-
-      console.log(branchCommits);
 
       const shouldCreatePR = await confirm({
         message: `Want me to cook up a PR for ${branchCommits.total} ${pluralize(branchCommits.total, "commit")}?`,
@@ -314,7 +313,7 @@ Pick a lane:
 
           if (!shouldPush) {
             log.info(
-              "Skipping push. You'll need to push manually before creating the PR.",
+              "Your call. Push manually when you're ready for the PR! 🤙",
             );
             return;
           }
@@ -325,58 +324,39 @@ Pick a lane:
           );
 
           await git.push("origin", branch);
-          pushSpinner.stop("✅ Commits pushed successfully!");
+          pushSpinner.stop("Pushed! Your code is now live and ready to PR 🚀");
         }
       } catch (error) {
-        log.error(
-          "Failed to push commits. You'll need to push manually first.",
-        );
+        log.error("Push failed! You'll need to handle that manually first.");
         log.error(error instanceof Error ? error.message : String(error));
         return;
       }
 
       const prSpinner = spinner();
-      prSpinner.start("Summoning the AI to write your PR...");
+      prSpinner.start("Getting the AI to write your PR...");
 
-      // Get detailed commit info for the PR
       const commits = await git.log([`origin/${baseBranch}..HEAD`]);
-      console.log(commits);
-      // Create a prompt for PR generation
-      const prPrompt = `Based on these commits, generate a concise PR title and a detailed PR body that explains the changes:
-
-Commits:
-${commits.all.map((c) => `- ${c.message}`).join("\n")}
-
-Generate:
-1. A PR title (max 72 chars) that summarizes all changes
-2. A PR body that:
-   - Summarizes what changed and why
-   - Lists the key changes as bullet points
-   - Mentions any breaking changes or important notes
-   - Is written in markdown format`;
-      console.log(prPrompt);
 
       const { object: prInfo } = await generateObject({
         model: google("gemini-2.5-flash"),
-        schema: z.object({
-          title: z.string().describe("PR title, max 72 characters"),
-          body: z.string().describe("PR body with markdown formatting"),
-        }),
-        prompt: prPrompt,
+        schema: prZodSchema,
+        prompt: prInstruction(commits.all),
       });
 
-      prSpinner.stop("✨ PR info generated!");
+      prSpinner.stop("Nice! Got your PR ready to rock...");
 
-      log.message("");
-      log.message(chalk.bold("PR Title:"));
-      log.message(prInfo.title);
-      log.message("");
-      log.message(chalk.bold("PR Body:"));
-      log.message(prInfo.body);
-      log.message("");
+      log.message("", { symbol: chalk.gray("│") });
+      log.message(chalk.bold("PR Title:"), { symbol: chalk.gray("│") });
+      log.message(prInfo.title, { symbol: chalk.gray("│") });
+      log.message("", { symbol: chalk.gray("│") });
+      log.message(chalk.bold("PR Body:"), { symbol: chalk.gray("│") });
+      log.message(chalk.dim(wrapText(prInfo.body)), {
+        symbol: chalk.gray("│"),
+      });
+      log.message("", { symbol: chalk.gray("│") });
 
       const confirmPR = await confirm({
-        message: "Look good? Let's open it in your browser to edit and create!",
+        message: "Ship it to GitHub?",
         initialValue: true,
       });
 
@@ -384,13 +364,11 @@ Generate:
         return;
       }
 
-      // Create PR using gh CLI
       const tempFile = `/tmp/pr-body-${Date.now()}.md`;
 
       try {
         await Bun.write(tempFile, prInfo.body);
 
-        // Use gh pr create --web to open in browser with pre-filled content
         const proc = Bun.spawn(
           [
             "gh",
@@ -414,7 +392,8 @@ Generate:
         const errors = await new Response(proc.stderr).text();
 
         if (errors && !errors.includes("Opening")) {
-          log.error(`GitHub CLI error: ${errors}`);
+          log.error("GitHub CLI sh*t the bed");
+          log.error(errors);
         }
 
         if (
@@ -422,31 +401,21 @@ Generate:
           output.includes("https://") ||
           errors.includes("Opening")
         ) {
-          log.success(
-            "🚀 PR draft opened in your browser! Edit and create when ready.",
-          );
+          log.success("PR opened in your browser! Time to ship it 🚀");
 
-          // Try to extract and display the URL
           const urlMatch = (output + errors).match(/https:\/\/[^\s]+/);
           if (urlMatch) {
-            log.info(`URL: ${chalk.cyan(urlMatch[0])}`);
+            log.info(`${chalk.cyan(urlMatch[0])}`);
           }
         }
       } catch (error) {
-        log.error(
-          "Failed to open PR in browser. You might need to install 'gh' CLI or authenticate.",
-        );
+        log.error("F*ck! Couldn't open PR in browser");
         log.error(error instanceof Error ? error.message : String(error));
-
-        // Show manual instructions
-        log.info("");
-        log.info("To create the PR manually:");
+        log.info("Manual backup plan:");
         log.info(
-          `1. Go to: ${remoteUrl.replace(".git", "")}/compare/${baseBranch}...${branch}`,
+          `${chalk.cyan(remoteUrl.replace(".git", ""))}/compare/${baseBranch}...${branch}`,
         );
-        log.info("2. Use the title and body shown above");
       } finally {
-        // Always clean up temp file
         try {
           await Bun.$`rm -f ${tempFile}`;
         } catch {
@@ -454,7 +423,7 @@ Generate:
         }
       }
     } catch (error) {
-      log.error("Failed to check git status for PR creation");
+      log.error("Well sh*t, PR creation went sideways");
       log.error(error instanceof Error ? error.message : String(error));
     }
   }
