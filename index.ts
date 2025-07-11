@@ -251,7 +251,7 @@ Pick a lane:
     try {
       const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
       const { value: remoteUrl } = await git.getConfig("remote.origin.url");
-      console.log(remoteUrl);
+
       if (!remoteUrl) {
         log.info("No remote origin found. Skipping PR creation.");
         return;
@@ -286,6 +286,7 @@ Pick a lane:
         `origin/${branch}..${branch}`,
         "--pretty=format:%s%n%n%b%n---",
       ]);
+      console.log(commits);
 
       // Create a prompt for PR generation
       const prPrompt = `Based on these commits, generate a concise PR title and a detailed PR body that explains the changes:
