@@ -1,11 +1,13 @@
-import { google } from "@ai-sdk/google";
-import { streamObject } from "ai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { generateObject, streamObject } from "ai";
 import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
 import { createClack } from "./clack.ts";
 import {
+  prInstruction,
+  prZodSchema,
   responseZodSchema,
   systemInstruction,
   userInstruction,
@@ -19,7 +21,6 @@ import {
   wrapText,
 } from "./utils.ts";
 
-// Create CLI command and parse arguments
 const cli = new CAC();
 
 cli
@@ -147,6 +148,10 @@ Pick a lane:
 
   log.info("Time to make the AI earn its keep...");
 
+  const google = createGoogleGenerativeAI({
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  });
+
   const { elementStream } = streamObject({
     model: google("gemini-2.5-flash"),
     providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
@@ -242,13 +247,190 @@ Pick a lane:
     }
   }
 
+  if (commitCount > 0) {
+    // Check if we have a remote and are on a branch that can create PRs
+    try {
+      const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
+      const { value: remoteUrl } = await git.getConfig("remote.origin.url");
+
+      if (!remoteUrl) {
+        log.info("No remote? No PR. Push your code somewhere first! 🤷");
+        return;
+      }
+
+      // Determine the base branch (main or master)
+      let baseBranch = "main";
+      try {
+        await git.revparse(["--verify", "origin/main"]);
+      } catch {
+        try {
+          await git.revparse(["--verify", "origin/master"]);
+          baseBranch = "master";
+        } catch {
+          log.info("No main or master branch? What kind of repo is this? 🤔");
+          return;
+        }
+      }
+
+      // Skip PR creation if we're on the base branch
+      if (branch === baseBranch) {
+        log.info(`You're on ${baseBranch} already. No PR needed, champ! 👑`);
+        return;
+      }
+
+      // Get all commits on this branch that aren't on the base branch
+      const branchCommits = await git.log([
+        `origin/${baseBranch}..HEAD`,
+        "--oneline",
+      ]);
+
+      if (branchCommits.total === 0) {
+        log.info(`No commits ahead of ${baseBranch}? Nothing to PR here! 🤷`);
+        return;
+      }
+
+      const shouldCreatePR = await confirm({
+        message: `Want me to cook up a PR for ${branchCommits.total} ${pluralize(branchCommits.total, "commit")}?`,
+        initialValue: true,
+      });
+
+      if (!shouldCreatePR) {
+        return;
+      }
+
+      // Check if we need to push commits
+      try {
+        const unpushedCommits = await git.log([
+          `origin/${branch}..HEAD`,
+          "--oneline",
+        ]);
+
+        if (unpushedCommits.total > 0) {
+          const shouldPush = await confirm({
+            message: `Push ${unpushedCommits.total} unpushed ${pluralize(unpushedCommits.total, "commit")} to origin/${branch}?`,
+            initialValue: true,
+          });
+
+          if (!shouldPush) {
+            log.info(
+              "Your call. Push manually when you're ready for the PR! 🤙",
+            );
+            return;
+          }
+
+          const pushSpinner = spinner();
+          pushSpinner.start(
+            `Pushing ${unpushedCommits.total} ${pluralize(unpushedCommits.total, "commit")} to origin/${branch}...`,
+          );
+
+          await git.push("origin", branch);
+          pushSpinner.stop("Pushed! Your code is now live and ready to PR 🚀");
+        }
+      } catch (error) {
+        log.error("Push failed! You'll need to handle that manually first.");
+        log.error(error instanceof Error ? error.message : String(error));
+        return;
+      }
+
+      const prSpinner = spinner();
+      prSpinner.start("Getting the AI to write your PR...");
+
+      const commits = await git.log([`origin/${baseBranch}..HEAD`]);
+
+      const { object: prInfo } = await generateObject({
+        model: google("gemini-2.5-flash"),
+        schema: prZodSchema,
+        prompt: prInstruction(commits.all),
+      });
+
+      prSpinner.stop("Nice! Got your PR ready to rock...");
+
+      log.message("", { symbol: chalk.gray("│") });
+      log.message(chalk.bold("PR Title:"), { symbol: chalk.gray("│") });
+      log.message(prInfo.title, { symbol: chalk.gray("│") });
+      log.message("", { symbol: chalk.gray("│") });
+      log.message(chalk.bold("PR Body:"), { symbol: chalk.gray("│") });
+      log.message(chalk.dim(wrapText(prInfo.body)), {
+        symbol: chalk.gray("│"),
+      });
+      log.message("", { symbol: chalk.gray("│") });
+
+      const confirmPR = await confirm({
+        message: "Ship it to GitHub?",
+        initialValue: true,
+      });
+
+      if (!confirmPR) {
+        return;
+      }
+
+      const tempFile = `/tmp/pr-body-${Date.now()}.md`;
+
+      try {
+        await Bun.write(tempFile, prInfo.body);
+
+        const proc = Bun.spawn(
+          [
+            "gh",
+            "pr",
+            "create",
+            "--base",
+            baseBranch,
+            "--title",
+            prInfo.title,
+            "--body-file",
+            tempFile,
+            "--web",
+          ],
+          {
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+
+        const output = await new Response(proc.stdout).text();
+        const errors = await new Response(proc.stderr).text();
+
+        if (errors && !errors.includes("Opening")) {
+          log.error("GitHub CLI sh*t the bed");
+          log.error(errors);
+        }
+
+        if (
+          output.includes("Opening") ||
+          output.includes("https://") ||
+          errors.includes("Opening")
+        ) {
+          log.success("PR opened in your browser! Time to ship it 🚀");
+
+          const urlMatch = (output + errors).match(/https:\/\/[^\s]+/);
+          if (urlMatch) {
+            log.info(`${chalk.cyan(urlMatch[0])}`);
+          }
+        }
+      } catch (error) {
+        log.error("F*ck! Couldn't open PR in browser");
+        log.error(error instanceof Error ? error.message : String(error));
+        log.info("Manual backup plan:");
+        log.info(
+          `${chalk.cyan(remoteUrl.replace(".git", ""))}/compare/${baseBranch}...${branch}`,
+        );
+      } finally {
+        try {
+          await Bun.$`rm -f ${tempFile}`;
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+    } catch (error) {
+      log.error("Well sh*t, PR creation went sideways");
+      log.error(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   outro(
     `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome.`,
   );
 }
 
-// Run the main function
-main().catch((error) => {
-  console.error("💥 Unexpected error:", error);
-  process.exit(1);
-});
+main();
