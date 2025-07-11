@@ -1,4 +1,4 @@
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamObject } from "ai";
 import { CAC } from "cac";
 import chalk from "chalk";
@@ -19,7 +19,6 @@ import {
   wrapText,
 } from "./utils.ts";
 
-// Create CLI command and parse arguments
 const cli = new CAC();
 
 cli
@@ -60,6 +59,7 @@ async function main() {
   analysisSpinner.start("Snooping around your repo...");
 
   // Initialize git instance on the current working directory
+  console.log(process.cwd());
   const git = simpleGit(process.cwd());
 
   // Check if the current directory is a git repository
@@ -146,6 +146,11 @@ Pick a lane:
   }
 
   log.info("Time to make the AI earn its keep...");
+
+  const google = createGoogleGenerativeAI({
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  });
+  console.log(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 
   const { elementStream } = streamObject({
     model: google("gemini-2.5-flash"),
@@ -242,13 +247,17 @@ Pick a lane:
     }
   }
 
+  // if (commitCount > 0) {
+  // gh pr create --base my-base-branch --head my-changed-branch --assignee "@octocat" --title "The bug is fixed" --body "Everything works again" --label "bug,help wanted" --web
+  // const { value: remoteUrl } = await git.getConfig("remote.origin.url");
+  // const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
+  // const proc = Bun.spawn(["gh", "pr", "create", "--fill", "--web"]);
+  // await proc.exited;
+  // }
+
   outro(
     `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome.`,
   );
 }
 
-// Run the main function
-main().catch((error) => {
-  console.error("💥 Unexpected error:", error);
-  process.exit(1);
-});
+main();
