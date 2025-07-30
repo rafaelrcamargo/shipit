@@ -7,6 +7,7 @@
   "scripts": {
     "build": "DO_NOT_TRACK=1 bun build --compile --minify --sourcemap --bytecode ./index.ts --outfile ./build/git-thing",
     "format": "prettier --ignore-unknown --write . --ignore-path .gitignore",
+    "move": "mv ./build/git-thing /usr/local/bin/git-thing",
     "postinstall": "simple-git-hooks",
     "preinstall": "pnpm dlx only-allow bun"
   },
@@ -21,22 +22,22 @@
     "chalk": "^5.4.1",
     "gpt-tokenizer": "^3.0.1",
     "simple-git": "^3.28.0",
-    "zod": "^3.25.67"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@eslint/js": "^9.30.0",
+    "@eslint/js": "^9.32.0",
     "@types/bun": "latest",
-    "@types/node": "^24.0.6",
+    "@types/node": "^24.1.0",
     "@types/stream-json": "^1.7.8",
-    "eslint": "^9.30.0",
+    "eslint": "^9.32.0",
     "eslint-plugin-perfectionist": "^4.15.0",
-    "globals": "^16.2.0",
+    "globals": "^16.3.0",
     "lint-staged": "^16.1.2",
     "prettier": "^3.6.2",
-    "prettier-plugin-organize-imports": "^4.1.0",
-    "prettier-plugin-pkg": "^0.21.1",
+    "prettier-plugin-organize-imports": "^4.2.0",
+    "prettier-plugin-pkg": "^0.21.2",
     "simple-git-hooks": "^2.13.0",
-    "typescript-eslint": "^8.35.0"
+    "typescript-eslint": "^8.38.0"
   },
   "lint-staged": {
     "*": "prettier --ignore-unknown --write --allow-empty"
