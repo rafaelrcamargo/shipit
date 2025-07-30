@@ -148,9 +148,14 @@ Pick a lane:
 
   log.info("Time to make the AI earn its keep...");
 
-  const google = createGoogleGenerativeAI({
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-  });
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+
+  if (!apiKey) {
+    log.error("GOOGLE_GENERATIVE_AI_API_KEY is not set");
+    process.exit(1);
+  }
+
+  const google = createGoogleGenerativeAI({ apiKey });
 
   const { elementStream } = streamObject({
     model: google("gemini-2.5-flash"),
@@ -245,6 +250,12 @@ Pick a lane:
     } else {
       log.info("Your loss, champ. Next!");
     }
+  }
+
+  try {
+    commitSpinner.stop("Done!");
+  } catch {
+    // Ignore
   }
 
   if (commitCount > 0) {
@@ -428,9 +439,13 @@ Pick a lane:
     }
   }
 
-  outro(
-    `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome.`,
-  );
+  if (commitCount > 0) {
+    outro(
+      `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome.`,
+    );
+  } else {
+    outro("No commits? Nothing to commit here. Time to write some code! 🙄");
+  }
 }
 
 main();
