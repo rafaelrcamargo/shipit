@@ -32,16 +32,19 @@ export GOOGLE_GENERATIVE_AI_API_KEY="..."
 shipit                    # Process all changed files
 shipit index.ts utils.ts  # Process specific files
 
-shipit --help             # Show help and every option
+shipit --help             # Show help and all options
 
-# Common combinations
-shipit -fu                # The want to get shit done combo
-shipit -y --pr            # The no time to waste combo, get it in there
+# Common use cases
+shipit -fu                # The want-to-get-shit-done combo
+shipit -y --pr            # The no-time-to-waste combo, get it in there
 ```
 
----
+<details>
+<summary>
 
 ### A Note on Other Tools
+
+</summary>
 
 `shipit` was built after months of using other AI-powered commit tools and finding they fell just short of the ideal workflow; so close, yet so far. While fantastic tools like `cz-git` and Cursor exist, `shipit` takes a different path to solve a few key annoyances.
 
@@ -50,3 +53,5 @@ shipit -y --pr            # The no time to waste combo, get it in there
 -   **Cursor (and other AI Editors):** In-editor AI commit tools are powerful, but they come with their own friction. You often need to craft your own prompts or guidelines on the fly, and it pulls you out of a terminal-centric workflow. Sometimes, you just want to fire off a commit from the command line without switching contexts.
 
 The idea behind `shipit` is that with modern, large-context models, the AI is already smart enough to understand the "why" behind your changes just by reading the `diff`. It lets the model do the heavy lifting, saving you from playing prompt engineer and giving you back precise, context-aware commit messages.
+
+</details>
