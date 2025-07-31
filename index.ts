@@ -4,7 +4,7 @@ import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
-import { createClack } from "./clack.ts";
+import { createPrompts } from "./prompts.ts";
 import {
   prInstruction,
   prZodSchema,
@@ -26,28 +26,25 @@ const cli = new CAC("shipit");
 cli
   .command(
     "[...files]",
-    "Create a new commit containing the current contents of the index and generate a log message describing the changes.",
+    "Send changes to AI to categorize and generate commit messages",
   )
-  .option("-f,--force", "Auto accept all commits and skip confirmation")
+  .option("-s,--silent", "Only log fatal errors to the console")
+  .option("-y,--yes", "Automatically accept all commits, same as --force")
+  .option("-f,--force", "Automatically accept all commits, same as --yes")
   .option("-u,--unsafe", "Skip token count verification")
-  .option(
-    "-s,--silent",
-    "No output is logged to the console, except fatal errors",
-  );
+  .option("-p,--pr", "Automatically create a pull request");
 
 cli.help();
 cli.version(version);
 
 const { args, options } = cli.parse();
 
-// Early exit if help or version is requested
-if (options.help || options.version) process.exit(0);
+if (options["help"] || options["version"]) process.exit(0);
 
 async function main() {
-  // We wrap the clack library in a function to allow for silent mode and force mode
-  const { log, note, outro, spinner, confirm } = createClack({
-    silent: options.silent,
-    force: options.force,
+  const { log, note, outro, spinner, confirm } = createPrompts({
+    silent: options["silent"],
+    force: options["force"] || options["yes"],
   });
 
   note(
@@ -60,10 +57,8 @@ async function main() {
   const analysisSpinner = spinner();
   analysisSpinner.start("Snooping around your repo...");
 
-  // Initialize git instance on the current working directory
   const git = simpleGit(process.cwd());
 
-  // Check if the current directory is a git repository
   if (!(await git.checkIsRepo())) {
     analysisSpinner.stop("❌ Well, this is awkward...");
     outro(
@@ -134,7 +129,7 @@ Pick a lane:
     `${category.emoji ? `${category.emoji} ` : ""}That's ${chalk.bold(`~${actualTokenCount} tokens`)} of pure chaos, ${category.label}`,
   );
 
-  if (category.needsConfirmation && !options.unsafe) {
+  if (category.needsConfirmation && !options["unsafe"]) {
     const shouldContinue = await confirm({
       message: `${chalk.bold(`${category.emoji ? `${category.emoji} ` : ""}Whoa there!`)} ${category.description}. ${chalk.italic.dim("You sure you want to burn those tokens?")}`,
       initialValue: false,
@@ -148,7 +143,7 @@ Pick a lane:
 
   log.info("Time to make the AI earn its keep...");
 
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  const apiKey = process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
 
   if (!apiKey) {
     log.error("GOOGLE_GENERATIVE_AI_API_KEY is not set");
@@ -181,6 +176,7 @@ Pick a lane:
     const description = decapitalizeFirstLetter(commit.description);
     let prefix = `${commit.type}${commit.scope?.length ? `(${commit.scope})` : ""}${commit.breaking ? "!" : ""}`;
 
+    // The AI might redundantly include the prefix in the description, so we remove it here.
     if (description.startsWith(prefix)) {
       prefix = "";
     }
@@ -258,7 +254,7 @@ Pick a lane:
     // Ignore
   }
 
-  if (commitCount > 0) {
+  if (commitCount > 0 && !options["force"] && !options["yes"]) {
     // Check if we have a remote and are on a branch that can create PRs
     try {
       const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
@@ -269,7 +265,6 @@ Pick a lane:
         return;
       }
 
-      // Determine the base branch (main or master)
       let baseBranch = "main";
       try {
         await git.revparse(["--verify", "origin/main"]);
@@ -283,13 +278,11 @@ Pick a lane:
         }
       }
 
-      // Skip PR creation if we're on the base branch
       if (branch === baseBranch) {
         log.info(`You're on ${baseBranch} already. No PR needed, champ! 👑`);
         return;
       }
 
-      // Get all commits on this branch that aren't on the base branch
       const branchCommits = await git.log([
         `origin/${baseBranch}..HEAD`,
         "--oneline",
@@ -300,16 +293,17 @@ Pick a lane:
         return;
       }
 
-      const shouldCreatePR = await confirm({
-        message: `Want me to cook up a PR for ${branchCommits.total} ${pluralize(branchCommits.total, "commit")}?`,
-        initialValue: true,
-      });
+      const shouldCreatePR =
+        options["pr"] ||
+        (await confirm({
+          message: `Want me to cook up a PR for ${branchCommits.total} ${pluralize(branchCommits.total, "commit")}?`,
+          initialValue: true,
+        }));
 
       if (!shouldCreatePR) {
         return;
       }
 
-      // Check if we need to push commits
       try {
         const unpushedCommits = await git.log([
           `origin/${branch}..HEAD`,
@@ -375,6 +369,7 @@ Pick a lane:
         return;
       }
 
+      // Use a temporary file to pass the PR body to the GitHub CLI
       const tempFile = `/tmp/pr-body-${Date.now()}.md`;
 
       try {
