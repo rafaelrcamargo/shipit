@@ -15,7 +15,7 @@ Tired of staring at your messy diff wondering what the hell to call this commit?
 # Build it and copy to /usr/local/bin/shipit
 bun run build && sudo bun run copy
 
-# Ensure your API key is set. You can get one at <https://aistudio.google.com/app/apikey>.
+# Ensure your API key is set. You can get one at https://aistudio.google.com/app/apikey.
 export GOOGLE_GENERATIVE_AI_API_KEY="..."
 ```
 
