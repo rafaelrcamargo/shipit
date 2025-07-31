@@ -7,6 +7,8 @@
     "build": "DO_NOT_TRACK=1 bun build --compile --minify --sourcemap --bytecode ./index.ts --outfile ./build/shipit",
     "copy": "cp ./build/shipit /usr/local/bin/shipit",
     "format": "prettier --ignore-unknown --write . --ignore-path .gitignore",
+    "format:check": "prettier --ignore-unknown --check . --ignore-path .gitignore",
+    "lint": "eslint .",
     "postinstall": "simple-git-hooks",
     "preinstall": "pnpm dlx only-allow bun"
   },
