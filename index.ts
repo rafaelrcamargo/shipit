@@ -199,9 +199,6 @@ Pick a lane:
 
       try {
         await git.add(commit.files);
-        log.success(
-          `Staged ${commit.files.length} ${pluralize(commit.files.length, "file")}`,
-        );
       } catch (error) {
         log.error(chalk.red("Well sh*t, couldn't stage the files"));
         log.error(error instanceof Error ? error.message : String(error));
@@ -234,13 +231,13 @@ Pick a lane:
 
   if (commitCount > 0 && !options["force"] && !options["yes"]) {
     // Check if we have a remote and are on a branch that can create PRs
-    try {
+    pr_creation_flow: try {
       const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
       const { value: remoteUrl } = await git.getConfig("remote.origin.url");
 
       if (!remoteUrl) {
         log.info("No remote? No PR. Push your code somewhere first! 🤷");
-        return;
+        break pr_creation_flow;
       }
 
       let baseBranch = "main";
@@ -252,13 +249,13 @@ Pick a lane:
           baseBranch = "master";
         } catch {
           log.info("No main or master branch? What kind of repo is this? 🤔");
-          return;
+          break pr_creation_flow;
         }
       }
 
       if (branch === baseBranch) {
         log.info(`You're on ${baseBranch} already. No PR needed, champ! 👑`);
-        return;
+        break pr_creation_flow;
       }
 
       const branchCommits = await git.log([
@@ -268,7 +265,7 @@ Pick a lane:
 
       if (branchCommits.total === 0) {
         log.info(`No commits ahead of ${baseBranch}? Nothing to PR here! 🤷`);
-        return;
+        break pr_creation_flow;
       }
 
       const shouldCreatePR =
@@ -279,7 +276,7 @@ Pick a lane:
         }));
 
       if (!shouldCreatePR) {
-        return;
+        break pr_creation_flow;
       }
 
       try {
@@ -295,7 +292,7 @@ Pick a lane:
           });
 
           if (!shouldPush) {
-            return;
+            break pr_creation_flow;
           }
 
           const pushSpinner = spinner();
@@ -309,7 +306,7 @@ Pick a lane:
       } catch (error) {
         log.error("Push failed! You'll need to handle that manually first.");
         log.error(error instanceof Error ? error.message : String(error));
-        return;
+        break pr_creation_flow;
       }
 
       const prSpinner = spinner();
@@ -341,7 +338,7 @@ Pick a lane:
       });
 
       if (!confirmPR) {
-        return;
+        break pr_creation_flow;
       }
 
       // Use a temporary file to pass the PR body to the GitHub CLI
@@ -408,7 +405,7 @@ Pick a lane:
     }
   }
 
-  if (options["push"]) {
+  push_flow: if (options["push"]) {
     const pushSpinner = spinner();
     pushSpinner.start("Pushing to origin...");
 
@@ -418,7 +415,7 @@ Pick a lane:
 
       if (!remoteUrl) {
         log.info("No remote? No push. Your code is safe... for now 🤷");
-        return;
+        break push_flow;
       }
 
       const unpushedCommits = await git.log([
