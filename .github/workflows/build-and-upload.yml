@@ -22,11 +22,11 @@ jobs:
             target: bun-windows-x64-modern
             artifact_name: shipit-windows-x64
             ext: ".exe"
-          - os: macos-latest
+          - os: macos-15
             target: bun-darwin-x64
             artifact_name: shipit-macos-x64
             ext: ""
-          - os: macos-latest
+          - os: macos-15
             target: bun-darwin-arm64
             artifact_name: shipit-macos-arm64
             ext: ""
