@@ -4,7 +4,6 @@ import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
-import { createPrompts } from "./prompts.ts";
 import {
   prInstruction,
   prZodSchema,
@@ -13,6 +12,7 @@ import {
   userInstruction,
 } from "./constants.ts";
 import { version } from "./package.json" with { type: "json" };
+import { createPrompts } from "./prompts.ts";
 import {
   categorizeChangesCount,
   categorizeTokenCount,
