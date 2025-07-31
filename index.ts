@@ -250,7 +250,7 @@ Pick a lane:
   }
 
   try {
-    commitSpinner.stop("Done!");
+    commitSpinner.stop();
   } catch {
     // Ignore
   }
