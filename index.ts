@@ -32,7 +32,8 @@ cli
   .option("-y,--yes", "Automatically accept all commits, same as --force")
   .option("-f,--force", "Automatically accept all commits, same as --yes")
   .option("-u,--unsafe", "Skip token count verification")
-  .option("-p,--pr", "Automatically create a pull request");
+  .option("-p, --push", "Push the changes if any after processing all commits")
+  .option("--pr", "Automatically create a pull request");
 
 cli.help();
 cli.version(version);
@@ -430,6 +431,40 @@ Pick a lane:
       }
     } catch (error) {
       log.error("Well sh*t, PR creation went sideways");
+      log.error(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  if (options["push"]) {
+    const pushSpinner = spinner();
+    pushSpinner.start("Pushing your sh*t to origin...");
+
+    try {
+      const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
+      const { value: remoteUrl } = await git.getConfig("remote.origin.url");
+
+      if (!remoteUrl) {
+        log.info("No remote? No push. Your code is safe... for now 🤷");
+        return;
+      }
+
+      const unpushedCommits = await git.log([
+        `origin/${branch}..HEAD`,
+        "--oneline",
+      ]);
+
+      if (unpushedCommits.total === 0) {
+        pushSpinner.stop("Nothing to push. Your branch is up to date. 👍");
+      } else {
+        pushSpinner.message(
+          `Pushing ${unpushedCommits.total} ${pluralize(unpushedCommits.total, "commit")} to origin/${branch}...`,
+        );
+
+        await git.push("origin", branch);
+        pushSpinner.stop("Pushed! Your code is now live and ready to rock 🚀");
+      }
+    } catch (error) {
+      pushSpinner.stop("Push failed! You'll need to handle that manually.");
       log.error(error instanceof Error ? error.message : String(error));
     }
   }
