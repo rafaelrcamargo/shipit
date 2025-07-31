@@ -249,12 +249,6 @@ Pick a lane:
     }
   }
 
-  try {
-    commitSpinner.stop();
-  } catch {
-    // Ignore
-  }
-
   if (commitCount > 0 && !options["force"] && !options["yes"]) {
     // Check if we have a remote and are on a branch that can create PRs
     try {
