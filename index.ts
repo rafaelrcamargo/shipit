@@ -48,27 +48,26 @@ async function main() {
     force: options["force"] || options["yes"],
   });
 
-  note(
-    chalk.italic("Because writing 'fix stuff' gets old real quick..."),
-    chalk.bold("🧹 Git Your Sh*t Together"),
-  );
-
-  log.info("Let's see what mess you've made this time...");
+  if (!options["silent"] && !options["force"] && !options["yes"]) {
+    note(
+      chalk.italic("Because writing 'fix stuff' gets old real quick..."),
+      chalk.bold("🧹 Git Your Sh*t Together"),
+    );
+  }
 
   const analysisSpinner = spinner();
-  analysisSpinner.start("Snooping around your repo...");
+  analysisSpinner.start("Let's see what mess you've made this time...");
 
   const git = simpleGit(process.cwd());
 
   if (!(await git.checkIsRepo())) {
     analysisSpinner.stop("❌ Well, this is awkward...");
     outro(
-      "Not a git repo? What the f*ck are you trying to commit here? Run 'git init' first! 🤦",
+      "Not a git repo? What are you trying to commit here? Run `git init` first! 🤦",
     );
     process.exit(1);
   }
 
-  analysisSpinner.message("Checking the damage...");
   const {
     files: _files,
     isClean,
@@ -82,7 +81,7 @@ async function main() {
   }
 
   if (status.conflicted && status.conflicted.length > 0) {
-    analysisSpinner.stop("💥 You have merge conflicts!");
+    analysisSpinner.stop("⚠️ Merge conflicts detected");
     outro(
       `Holy sh*t! Fix your ${status.conflicted.length} ${pluralize(status.conflicted.length, "conflict")} first: ${status.conflicted.join(", ")}`,
     );
@@ -94,20 +93,17 @@ async function main() {
 
     if (status.staged && status.staged.length > 0) {
       analysisSpinner.stop("⚠️  Hold up! Mixed signals detected!");
-      outro(`You've got staged files AND specified paths? That's a recipe for disaster.
+      outro(`You've got staged files AND specified paths? That's not gonna work.
 
 Pick a lane:
-- Unstage your sh*t: git reset
-- Commit the staged stuff first: git commit
+- Unstage your sh*t: \`git reset\`
+- Commit the staged stuff first: \`git commit\`
 - Or YOLO it without paths to handle everything`);
       process.exit(1);
     }
   }
 
-  analysisSpinner.message("Counting your sins...");
   const diffSummary = await git.diffSummary(args as string[]);
-
-  analysisSpinner.message("Grabbing all the juicy details...");
   const diff = await git.diff(args as string[]);
 
   analysisSpinner.stop(
@@ -116,19 +112,8 @@ Pick a lane:
 
   const prompt = userInstruction(status, diffSummary, diff);
 
-  log.info("Cooking up a spicy prompt for the AI...");
-
-  const tokenCountSpinner = spinner();
-  tokenCountSpinner.start(
-    "Doing some quick math (don't worry, it's not your job)...",
-  );
-
   const actualTokenCount = countTokens(prompt);
   const category = categorizeTokenCount(actualTokenCount);
-
-  tokenCountSpinner.stop(
-    `${category.emoji ? `${category.emoji} ` : ""}That's ${chalk.bold(`~${actualTokenCount} tokens`)} of pure chaos, ${category.label}`,
-  );
 
   if (category.needsConfirmation && !options["unsafe"]) {
     const shouldContinue = await confirm({
@@ -141,8 +126,6 @@ Pick a lane:
       process.exit(0);
     }
   }
-
-  log.info("Time to make the AI earn its keep...");
 
   const apiKey = process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
 
@@ -170,8 +153,6 @@ Pick a lane:
     log.message("", { symbol: chalk.gray("│") });
     if (commitCount === 0) {
       commitSpinner.stop("Hot damn! Here come the goods...");
-    } else {
-      log.info("Oh sh*t, another banger incoming...");
     }
 
     const description = decapitalizeFirstLetter(commit.description);
@@ -238,8 +219,10 @@ Pick a lane:
           )}`,
         );
       } catch (error) {
-        log.error(chalk.red("F*ck! The commit crashed and burned"));
-        log.error(error instanceof Error ? error.message : String(error));
+        log.error(
+          "Commit failed: " +
+            (error instanceof Error ? error.message : String(error)),
+        );
         process.exit(1);
       }
 
@@ -312,9 +295,6 @@ Pick a lane:
           });
 
           if (!shouldPush) {
-            log.info(
-              "Your call. Push manually when you're ready for the PR! 🤙",
-            );
             return;
           }
 
@@ -324,7 +304,7 @@ Pick a lane:
           );
 
           await git.push("origin", branch);
-          pushSpinner.stop("Pushed! Your code is now live and ready to PR 🚀");
+          pushSpinner.stop("Pushed! Your code is now live and ready to PR");
         }
       } catch (error) {
         log.error("Push failed! You'll need to handle that manually first.");
@@ -393,8 +373,7 @@ Pick a lane:
         const errors = await new Response(proc.stderr).text();
 
         if (errors && !errors.includes("Opening")) {
-          log.error("GitHub CLI sh*t the bed");
-          log.error(errors);
+          log.error("GitHub CLI error: " + errors);
         }
 
         if (
@@ -431,7 +410,7 @@ Pick a lane:
 
   if (options["push"]) {
     const pushSpinner = spinner();
-    pushSpinner.start("Pushing your sh*t to origin...");
+    pushSpinner.start("Pushing to origin...");
 
     try {
       const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
@@ -455,7 +434,9 @@ Pick a lane:
         );
 
         await git.push("origin", branch);
-        pushSpinner.stop("Pushed! Your code is now live and ready to rock 🚀");
+        pushSpinner.stop(
+          `Pushed ${unpushedCommits.total} ${pluralize(unpushedCommits.total, "commit")}`,
+        );
       }
     } catch (error) {
       pushSpinner.stop("Push failed! You'll need to handle that manually.");
