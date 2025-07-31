@@ -16,9 +16,9 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@ai-sdk/google": "^2.0.0-canary.20",
+    "@ai-sdk/google": "^2.0.0",
     "@clack/prompts": "1.0.0-alpha.1",
-    "ai": "^5.0.0-canary.24",
+    "ai": "^5.0.0",
     "cac": "^6.7.14",
     "chalk": "^5.4.1",
     "gpt-tokenizer": "^3.0.1",
