@@ -1,6 +1,6 @@
 # shipit :shipit:
 
-Because writing `fix stuff` gets old real quick...
+> Because writing `fix stuff` gets old real quick...
 
 This AI tool analyzes your Git diff and writes sensible commit messages. It groups related changes into logical commits, follows conventional commit standards, and even creates GitHub pull requests with well-written descriptions. No more "WIP" or "fixed stuff" commits; just clean, meaningful Git history. Plus, it'll roast you along the way, because debugging is hard enough without boring tools.
 
