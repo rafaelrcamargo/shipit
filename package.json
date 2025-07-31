@@ -1,12 +1,11 @@
 {
-  "name": "git-thing",
+  "name": "shipit",
   "version": "0.1.0",
   "type": "module",
-  "packageManager": "pnpm@9.7.0+sha512.dc09430156b427f5ecfc79888899e1c39d2d690f004be70e05230b72cb173d96839587545d09429b55ac3c429c801b4dc3c0e002f653830a420fa2dd4e3cf9cf",
   "module": "index.ts",
   "scripts": {
-    "build": "DO_NOT_TRACK=1 bun build --compile --minify --sourcemap --bytecode ./index.ts --outfile ./build/git-thing",
-    "copy": "cp ./build/git-thing /usr/local/bin/git-thing",
+    "build": "DO_NOT_TRACK=1 bun build --compile --minify --sourcemap --bytecode ./index.ts --outfile ./build/shipit",
+    "copy": "cp ./build/shipit /usr/local/bin/shipit",
     "format": "prettier --ignore-unknown --write . --ignore-path .gitignore",
     "postinstall": "simple-git-hooks",
     "preinstall": "pnpm dlx only-allow bun"

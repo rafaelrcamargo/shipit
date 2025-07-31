@@ -21,7 +21,7 @@ import {
   wrapText,
 } from "./utils.ts";
 
-const cli = new CAC();
+const cli = new CAC("shipit");
 
 cli
   .command(
