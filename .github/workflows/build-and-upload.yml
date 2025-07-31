@@ -1,0 +1,60 @@
+name: Build Binaries
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build for ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: bun-linux-x64-modern
+            artifact_name: shipit-linux-x64
+          - os: windows-latest
+            target: bun-windows-x64-modern
+            artifact_name: shipit-windows-x64
+          - os: macos-latest
+            target: bun-darwin-x64
+            artifact_name: shipit-macos-x64
+          - os: macos-latest
+            target: bun-darwin-arm64
+            artifact_name: shipit-macos-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Create build directory
+        run: mkdir -p build
+
+      - name: Build executable
+        run: bun build ./index.ts --compile --minify --target ${{ matrix.target }} --outfile ./build/${{ matrix.artifact_name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ./build/${{ matrix.artifact_name }}
