@@ -7,7 +7,7 @@ Tired of staring at your messy diff wondering what the hell to call this commit?
 [^1]: Self-criticism from the creator here, I made this tool because my own Git history was a disaster. :D
 
 > [!IMPORTANT]
-> This tool depends on `GOOGLE_GENERATIVE_AI_API_KEY` being set. Obtain your API key at <https://aistudio.google.com/app/apikey>.
+> This tool requires the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable to be set. You can obtain your API key at <https://aistudio.google.com/app/apikey>. The free tier should be sufficient for running this tool.
 
 ## Setup
 
@@ -26,6 +26,12 @@ export GOOGLE_GENERATIVE_AI_API_KEY="..."
 > alias gca="shipit"
 > ```
 
+### Pre-built Binaries
+
+For convenience, pre-built binaries for `Linux`, `macOS`, and `Windows` are automatically generated for every push to `main` on GitHub. You can find them in the [Actions](https://github.com/rafaelrcamargo/shipit/actions) tab of the repository.
+
+Each workflow run will produce a set of artifacts, one for each target platform. Simply download the binary for your system, make it executable, and you're good to go. This allows you to use `shipit` without needing to have `Bun` or any other development tools installed on your system.
+
 ## Usage
 
 ```bash
@@ -38,6 +44,9 @@ shipit --help             # Show help and all options
 shipit -fu                # The want-to-get-shit-done combo
 shipit -y --pr            # The no-time-to-waste combo, get it in there
 ```
+
+> [!NOTE]
+> To generate pull requests with `--pr`, you'll need the [GitHub CLI](https://cli.github.com/) installed and authenticated. For private repositories, ensure you have the necessary permissions.
 
 <details>
 <summary>
