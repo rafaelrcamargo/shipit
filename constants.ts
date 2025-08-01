@@ -159,7 +159,7 @@ ${diff}
 
 ## Commit Message:`;
 
-export const responseZodSchema = z.object({
+export const responseSchema = z.object({
   files: z
     .array(z.string())
     .describe("Array of file paths affected by this commit group"),
@@ -193,11 +193,6 @@ export const responseZodSchema = z.object({
     .describe(
       "Array of footer strings (e.g., 'BREAKING CHANGE: ...', 'Closes #123')",
     ),
-});
-
-export const prZodSchema = z.object({
-  title: z.string().describe("PR title, max 72 characters"),
-  body: z.string().describe("PR body with markdown formatting"),
 });
 
 export const prInstruction = (
@@ -242,3 +237,8 @@ Create a PR title and body that follows these guidelines:
 - Focus on impact and reviewer needs
 
 Generate a title and body that would make any reviewer excited to review your code.`;
+
+export const prSchema = z.object({
+  title: z.string().describe("PR title, max 72 characters"),
+  body: z.string().describe("PR body with markdown formatting"),
+});

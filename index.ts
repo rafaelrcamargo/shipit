@@ -5,7 +5,7 @@ import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
 import {
-  responseZodSchema,
+  responseSchema,
   systemInstruction,
   userInstruction,
 } from "./constants.ts";
@@ -51,6 +51,15 @@ async function main() {
     silent: options["silent"],
     force: options["force"] || options["yes"],
   });
+
+  const apiKey = process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
+
+  if (!apiKey) {
+    log.error("GOOGLE_GENERATIVE_AI_API_KEY is not set");
+    process.exit(1);
+  }
+
+  const google = createGoogleGenerativeAI({ apiKey });
 
   if (!options["silent"] && !options["force"] && !options["yes"]) {
     note(
@@ -139,20 +148,11 @@ Pick a lane:
     }
   }
 
-  const apiKey = process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
-
-  if (!apiKey) {
-    log.error("GOOGLE_GENERATIVE_AI_API_KEY is not set");
-    process.exit(1);
-  }
-
-  const google = createGoogleGenerativeAI({ apiKey });
-
   const { elementStream } = streamObject({
     model: google("gemini-2.5-flash"),
     providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
     output: "array",
-    schema: responseZodSchema,
+    schema: responseSchema,
     system: systemInstruction,
     prompt: userInstruction(status, diffSummary, diff),
   });
@@ -172,7 +172,7 @@ Pick a lane:
       commit.scope?.length ? `(${commit.scope})` : ""
     }${commit.breaking ? "!" : ""}`;
 
-    // The AI might redundantly include the prefix in the description, so we remove it here.
+    // The AI may redundantly include the prefix in the description, so we remove it.
     if (description.startsWith(prefix)) {
       prefix = "";
     }
@@ -248,7 +248,7 @@ Pick a lane:
   }
 
   if (commitCount > 0 && !options["force"] && !options["yes"]) {
-    await handlePullRequest({ git, log, spinner, confirm, options });
+    await handlePullRequest({ git, log, spinner, confirm, options, google });
   }
 
   if (options["push"]) {
