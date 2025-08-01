@@ -191,7 +191,7 @@ export async function handlePullRequest({
         }
       }
     } catch (error) {
-      log.error(`F#ck! Couldn't open PR in browser: ${getErrorMessage(error)}`);
+      log.error(`F*ck! Couldn't open PR in browser: ${getErrorMessage(error)}`);
       log.info("Manual backup plan:");
       log.info(
         `${chalk.cyan(
@@ -207,7 +207,7 @@ export async function handlePullRequest({
     }
   } catch (error) {
     log.error(
-      `Well sh#t, PR creation went sideways: ${getErrorMessage(error)}`,
+      `Well sh*t, PR creation went sideways: ${getErrorMessage(error)}`,
     );
   }
 }

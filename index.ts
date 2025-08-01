@@ -55,7 +55,7 @@ async function main() {
   if (!options["silent"] && !options["force"] && !options["yes"]) {
     note(
       chalk.italic("Because writing 'fix stuff' gets old real quick..."),
-      chalk.bold("🧹 Git Your Sh#t Together"),
+      chalk.bold("🧹 Git Your Sh*t Together"),
     );
   }
 
@@ -83,7 +83,7 @@ async function main() {
   if (status.conflicted && status.conflicted.length > 0) {
     analysisSpinner.stop("⚠️ Merge conflicts detected");
     outro(
-      `Holy sh#t! Fix your ${status.conflicted.length} ${pluralize(
+      `Holy sh*t! Fix your ${status.conflicted.length} ${pluralize(
         status.conflicted.length,
         "conflict",
       )} first: ${status.conflicted.join(", ")}`,
@@ -99,7 +99,7 @@ async function main() {
       outro(`You've got staged files AND specified paths? That's not gonna work.
 
 Pick a lane:
-- Unstage your sh#t: \`git reset\`
+- Unstage your sh*t: \`git reset\`
 - Commit the staged stuff first: \`git commit\`
 - Or YOLO it without paths to handle everything`);
       process.exit(1);
@@ -219,7 +219,7 @@ Pick a lane:
         await git.add(commit.files);
       } catch (error) {
         log.error(
-          `Well sh#t, couldn't stage the files: ${getErrorMessage(error)}`,
+          `Well sh*t, couldn't stage the files: ${getErrorMessage(error)}`,
         );
         process.exit(1);
       }
