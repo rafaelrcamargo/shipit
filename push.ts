@@ -1,16 +1,11 @@
-import { simpleGit } from "simple-git";
-import { createPrompts } from "./prompts";
+import type { PushHandlerParams } from "./types";
 import { getErrorMessage, pluralize } from "./utils";
 
 export async function handlePush({
   git,
   log,
   spinner,
-}: {
-  git: ReturnType<typeof simpleGit>;
-  log: ReturnType<typeof createPrompts>["log"];
-  spinner: ReturnType<typeof createPrompts>["spinner"];
-}): Promise<void> {
+}: PushHandlerParams): Promise<void> {
   const pushSpinner = spinner();
   pushSpinner.start("Pushing to origin...");
 

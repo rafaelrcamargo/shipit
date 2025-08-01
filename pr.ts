@@ -1,10 +1,8 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateObject } from "ai";
 import chalk from "chalk";
-import { simpleGit } from "simple-git";
-import { prInstruction, prZodSchema } from "./constants";
-import { createPrompts } from "./prompts";
-import { getErrorMessage, pluralize, wrapText } from "./utils";
+import { prInstruction, prSchema } from "./constants";
+import type { PrHandlerParams } from "./types";
+import { getBaseBranch, getErrorMessage, pluralize, wrapText } from "./utils";
 
 export async function handlePullRequest({
   git,
@@ -12,13 +10,8 @@ export async function handlePullRequest({
   spinner,
   confirm,
   options,
-}: {
-  git: ReturnType<typeof simpleGit>;
-  log: ReturnType<typeof createPrompts>["log"];
-  spinner: ReturnType<typeof createPrompts>["spinner"];
-  confirm: ReturnType<typeof createPrompts>["confirm"];
-  options: { [key: string]: boolean };
-}): Promise<void> {
+  google,
+}: PrHandlerParams): Promise<void> {
   try {
     const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
     const { value: remoteUrl } = await git.getConfig("remote.origin.url");
@@ -28,17 +21,11 @@ export async function handlePullRequest({
       return;
     }
 
-    let baseBranch = "main";
-    try {
-      await git.revparse(["--verify", "origin/main"]);
-    } catch {
-      try {
-        await git.revparse(["--verify", "origin/master"]);
-        baseBranch = "master";
-      } catch {
-        log.info("No main or master branch? What kind of repo is this? 🤔");
-        return;
-      }
+    const baseBranch = await getBaseBranch(git);
+
+    if (!baseBranch) {
+      log.info("No main or master branch? What kind of repo is this? 🤔");
+      return;
     }
 
     if (branch === baseBranch) {
@@ -111,18 +98,11 @@ export async function handlePullRequest({
     const prSpinner = spinner();
     prSpinner.start("Getting the AI to write your PR...");
 
-    const apiKey = process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
-    if (!apiKey) {
-      log.error("GOOGLE_GENERATIVE_AI_API_KEY is not set");
-      process.exit(1);
-    }
-    const google = createGoogleGenerativeAI({ apiKey });
-
     const commits = await git.log([`origin/${baseBranch}..HEAD`]);
 
     const { object: prInfo } = await generateObject({
       model: google("gemini-2.5-flash"),
-      schema: prZodSchema,
+      schema: prSchema,
       prompt: prInstruction(commits.all),
     });
 
