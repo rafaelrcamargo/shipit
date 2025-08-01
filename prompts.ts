@@ -15,6 +15,8 @@ export function createPrompts({ silent = false, force = false }): typeof clack {
     return {
       ...clack,
 
+      // A proxy is used to intercept all methods of `clack.log`
+      // and replace them with a no-op, except for the `error` method.
       log: new Proxy(clack.log, {
         get(target, prop) {
           if (prop !== "error") return () => {};
