@@ -1,22 +1,23 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { generateObject, streamObject } from "ai";
+import { streamObject } from "ai";
 import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
 import {
-  prInstruction,
-  prZodSchema,
   responseZodSchema,
   systemInstruction,
   userInstruction,
 } from "./constants.ts";
 import { version } from "./package.json" with { type: "json" };
+import { handlePullRequest } from "./pr.ts";
 import { createPrompts } from "./prompts.ts";
+import { handlePush } from "./push.ts";
 import {
   categorizeChangesCount,
   categorizeTokenCount,
   decapitalizeFirstLetter,
+  getErrorMessage,
   pluralize,
   wrapText,
 } from "./utils.ts";
@@ -38,7 +39,10 @@ cli
 cli.help();
 cli.version(version);
 
-const { args, options } = cli.parse();
+const { args, options } = cli.parse() as {
+  args: string[];
+  options: { [key: string]: boolean };
+};
 
 if (options["help"] || options["version"]) process.exit(0);
 
@@ -51,7 +55,7 @@ async function main() {
   if (!options["silent"] && !options["force"] && !options["yes"]) {
     note(
       chalk.italic("Because writing 'fix stuff' gets old real quick..."),
-      chalk.bold("🧹 Git Your Sh*t Together"),
+      chalk.bold("🧹 Git Your Sh#t Together"),
     );
   }
 
@@ -68,22 +72,21 @@ async function main() {
     process.exit(1);
   }
 
-  const {
-    files: _files,
-    isClean,
-    ...status
-  } = await git.status(args as string[]);
+  const { files: _files, isClean, ...status } = await git.status(args);
 
   if (isClean()) {
     analysisSpinner.stop("Huh... squeaky clean. Nothing to see here.");
-    outro("No changes? Nothing to commit here. Time to write some code! 🙄");
+    outro("No changes? Time to get to work! 🙄");
     process.exit(0);
   }
 
   if (status.conflicted && status.conflicted.length > 0) {
     analysisSpinner.stop("⚠️ Merge conflicts detected");
     outro(
-      `Holy sh*t! Fix your ${status.conflicted.length} ${pluralize(status.conflicted.length, "conflict")} first: ${status.conflicted.join(", ")}`,
+      `Holy sh#t! Fix your ${status.conflicted.length} ${pluralize(
+        status.conflicted.length,
+        "conflict",
+      )} first: ${status.conflicted.join(", ")}`,
     );
     process.exit(1);
   }
@@ -96,18 +99,23 @@ async function main() {
       outro(`You've got staged files AND specified paths? That's not gonna work.
 
 Pick a lane:
-- Unstage your sh*t: \`git reset\`
+- Unstage your sh#t: \`git reset\`
 - Commit the staged stuff first: \`git commit\`
 - Or YOLO it without paths to handle everything`);
       process.exit(1);
     }
   }
 
-  const diffSummary = await git.diffSummary(args as string[]);
-  const diff = await git.diff(args as string[]);
+  const diffSummary = await git.diffSummary(args);
+  const diff = await git.diff(args);
 
   analysisSpinner.stop(
-    `${categorizeChangesCount(diffSummary.files.length)} You've touched ${chalk.bold(`${diffSummary.files.length} ${pluralize(diffSummary.files.length, "file")}`)}!`,
+    `${categorizeChangesCount(diffSummary.files.length)} You've touched ${chalk.bold(
+      `${diffSummary.files.length} ${pluralize(
+        diffSummary.files.length,
+        "file",
+      )}`,
+    )}!`,
   );
 
   const prompt = userInstruction(status, diffSummary, diff);
@@ -117,7 +125,11 @@ Pick a lane:
 
   if (category.needsConfirmation && !options["unsafe"]) {
     const shouldContinue = await confirm({
-      message: `${chalk.bold(`${category.emoji ? `${category.emoji} ` : ""}Whoa there!`)} ${category.description}. ${chalk.italic.dim("You sure you want to burn those tokens?")}`,
+      message: `${chalk.bold(
+        `${category.emoji ? `${category.emoji} ` : ""}Whoa there!`,
+      )} ${category.description}. ${chalk.italic.dim(
+        "You sure you want to burn those tokens?",
+      )}`,
       initialValue: false,
     });
 
@@ -156,14 +168,18 @@ Pick a lane:
     }
 
     const description = decapitalizeFirstLetter(commit.description);
-    let prefix = `${commit.type}${commit.scope?.length ? `(${commit.scope})` : ""}${commit.breaking ? "!" : ""}`;
+    let prefix = `${commit.type}${
+      commit.scope?.length ? `(${commit.scope})` : ""
+    }${commit.breaking ? "!" : ""}`;
 
     // The AI might redundantly include the prefix in the description, so we remove it here.
     if (description.startsWith(prefix)) {
       prefix = "";
     }
 
-    const displayMessage = `${prefix ? `${chalk.bold(`${prefix}: `)}` : ""}${description}`;
+    const displayMessage = `${
+      prefix ? `${chalk.bold(`${prefix}: `)}` : ""
+    }${description}`;
     const commitMessage = `${prefix ? `${prefix}: ` : ""}${description}`;
 
     log.message(chalk.gray("━━━"), { symbol: chalk.gray("│") });
@@ -184,7 +200,9 @@ Pick a lane:
 
     log.message(chalk.gray("━━━"), { symbol: chalk.gray("│") });
     log.message(
-      `Applies to these ${chalk.bold(`${commit.files.length} ${pluralize(commit.files.length, "file")}`)}: ${chalk.dim(wrapText(commit.files.join(", ")))}`,
+      `Applies to these ${chalk.bold(
+        `${commit.files.length} ${pluralize(commit.files.length, "file")}`,
+      )}: ${chalk.dim(wrapText(commit.files.join(", ")))}`,
       { symbol: chalk.gray("│") },
     );
 
@@ -200,8 +218,9 @@ Pick a lane:
       try {
         await git.add(commit.files);
       } catch (error) {
-        log.error(chalk.red("Well sh*t, couldn't stage the files"));
-        log.error(error instanceof Error ? error.message : String(error));
+        log.error(
+          `Well sh#t, couldn't stage the files: ${getErrorMessage(error)}`,
+        );
         process.exit(1);
       }
 
@@ -209,17 +228,16 @@ Pick a lane:
         const COMMIT_HASH_LENGTH = 7;
         const commitResult = await git.commit(message, commit.files);
         log.success(
-          `Committed to ${commitResult.branch}: ${chalk.bold(commitResult.commit.slice(0, COMMIT_HASH_LENGTH))} ${chalk.dim(
+          `Committed to ${commitResult.branch}: ${chalk.bold(
+            commitResult.commit.slice(0, COMMIT_HASH_LENGTH),
+          )} ${chalk.dim(
             `(${commitResult.summary.changes} changes, ${chalk.green(
               "+" + commitResult.summary.insertions,
             )}, ${chalk.red("-" + commitResult.summary.deletions)})`,
           )}`,
         );
       } catch (error) {
-        log.error(
-          "Commit failed: " +
-            (error instanceof Error ? error.message : String(error)),
-        );
+        log.error(`Commit failed: ${getErrorMessage(error)}`);
         process.exit(1);
       }
 
@@ -230,223 +248,22 @@ Pick a lane:
   }
 
   if (commitCount > 0 && !options["force"] && !options["yes"]) {
-    // Check if we have a remote and are on a branch that can create PRs
-    pr_creation_flow: try {
-      const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
-      const { value: remoteUrl } = await git.getConfig("remote.origin.url");
-
-      if (!remoteUrl) {
-        log.info("No remote? No PR. Push your code somewhere first! 🤷");
-        break pr_creation_flow;
-      }
-
-      let baseBranch = "main";
-      try {
-        await git.revparse(["--verify", "origin/main"]);
-      } catch {
-        try {
-          await git.revparse(["--verify", "origin/master"]);
-          baseBranch = "master";
-        } catch {
-          log.info("No main or master branch? What kind of repo is this? 🤔");
-          break pr_creation_flow;
-        }
-      }
-
-      if (branch === baseBranch) {
-        log.info(`You're on ${baseBranch} already. No PR needed, champ! 👑`);
-        break pr_creation_flow;
-      }
-
-      const branchCommits = await git.log([
-        `origin/${baseBranch}..HEAD`,
-        "--oneline",
-      ]);
-
-      if (branchCommits.total === 0) {
-        log.info(`No commits ahead of ${baseBranch}? Nothing to PR here! 🤷`);
-        break pr_creation_flow;
-      }
-
-      const shouldCreatePR =
-        options["pr"] ||
-        (await confirm({
-          message: `Want me to cook up a PR for ${branchCommits.total} ${pluralize(branchCommits.total, "commit")}?`,
-          initialValue: true,
-        }));
-
-      if (!shouldCreatePR) {
-        break pr_creation_flow;
-      }
-
-      try {
-        const unpushedCommits = await git.log([
-          `origin/${branch}..HEAD`,
-          "--oneline",
-        ]);
-
-        if (unpushedCommits.total > 0) {
-          const shouldPush = await confirm({
-            message: `Push ${unpushedCommits.total} unpushed ${pluralize(unpushedCommits.total, "commit")} to origin/${branch}?`,
-            initialValue: true,
-          });
-
-          if (!shouldPush) {
-            break pr_creation_flow;
-          }
-
-          const pushSpinner = spinner();
-          pushSpinner.start(
-            `Pushing ${unpushedCommits.total} ${pluralize(unpushedCommits.total, "commit")} to origin/${branch}...`,
-          );
-
-          await git.push("origin", branch);
-          pushSpinner.stop("Pushed! Your code is now live and ready to PR");
-        }
-      } catch (error) {
-        log.error("Push failed! You'll need to handle that manually first.");
-        log.error(error instanceof Error ? error.message : String(error));
-        break pr_creation_flow;
-      }
-
-      const prSpinner = spinner();
-      prSpinner.start("Getting the AI to write your PR...");
-
-      const commits = await git.log([`origin/${baseBranch}..HEAD`]);
-
-      const { object: prInfo } = await generateObject({
-        model: google("gemini-2.5-flash"),
-        schema: prZodSchema,
-        prompt: prInstruction(commits.all),
-      });
-
-      prSpinner.stop("Nice! Got your PR ready to rock...");
-
-      log.message("", { symbol: chalk.gray("│") });
-      log.message(chalk.bold("PR Title:"), { symbol: chalk.gray("│") });
-      log.message(prInfo.title, { symbol: chalk.gray("│") });
-      log.message("", { symbol: chalk.gray("│") });
-      log.message(chalk.bold("PR Body:"), { symbol: chalk.gray("│") });
-      log.message(chalk.dim(wrapText(prInfo.body)), {
-        symbol: chalk.gray("│"),
-      });
-      log.message("", { symbol: chalk.gray("│") });
-
-      const confirmPR = await confirm({
-        message: "Ship it to GitHub?",
-        initialValue: true,
-      });
-
-      if (!confirmPR) {
-        break pr_creation_flow;
-      }
-
-      // Use a temporary file to pass the PR body to the GitHub CLI
-      const tempFile = `/tmp/pr-body-${Date.now()}.md`;
-
-      try {
-        await Bun.write(tempFile, prInfo.body);
-
-        const proc = Bun.spawn(
-          [
-            "gh",
-            "pr",
-            "create",
-            "--base",
-            baseBranch,
-            "--title",
-            prInfo.title,
-            "--body-file",
-            tempFile,
-            "--web",
-          ],
-          {
-            stdout: "pipe",
-            stderr: "pipe",
-          },
-        );
-
-        const output = await new Response(proc.stdout).text();
-        const errors = await new Response(proc.stderr).text();
-
-        if (errors && !errors.includes("Opening")) {
-          log.error("GitHub CLI error: " + errors);
-        }
-
-        if (
-          output.includes("Opening") ||
-          output.includes("https://") ||
-          errors.includes("Opening")
-        ) {
-          log.success("PR opened in your browser! Time to ship it 🚀");
-
-          const urlMatch = (output + errors).match(/https:\/\/[^\s]+/);
-          if (urlMatch) {
-            log.info(`${chalk.cyan(urlMatch[0])}`);
-          }
-        }
-      } catch (error) {
-        log.error("F*ck! Couldn't open PR in browser");
-        log.error(error instanceof Error ? error.message : String(error));
-        log.info("Manual backup plan:");
-        log.info(
-          `${chalk.cyan(remoteUrl.replace(".git", ""))}/compare/${baseBranch}...${branch}`,
-        );
-      } finally {
-        try {
-          await Bun.$`rm -f ${tempFile}`;
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
-    } catch (error) {
-      log.error("Well sh*t, PR creation went sideways");
-      log.error(error instanceof Error ? error.message : String(error));
-    }
+    await handlePullRequest({ git, log, spinner, confirm, options });
   }
 
-  push_flow: if (options["push"]) {
-    const pushSpinner = spinner();
-    pushSpinner.start("Pushing to origin...");
-
-    try {
-      const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
-      const { value: remoteUrl } = await git.getConfig("remote.origin.url");
-
-      if (!remoteUrl) {
-        log.info("No remote? No push. Your code is safe... for now 🤷");
-        break push_flow;
-      }
-
-      const unpushedCommits = await git.log([
-        `origin/${branch}..HEAD`,
-        "--oneline",
-      ]);
-
-      if (unpushedCommits.total === 0) {
-        pushSpinner.stop("Nothing to push. Your branch is up to date. 👍");
-      } else {
-        pushSpinner.message(
-          `Pushing ${unpushedCommits.total} ${pluralize(unpushedCommits.total, "commit")} to origin/${branch}...`,
-        );
-
-        await git.push("origin", branch);
-        pushSpinner.stop(
-          `Pushed ${unpushedCommits.total} ${pluralize(unpushedCommits.total, "commit")}`,
-        );
-      }
-    } catch (error) {
-      pushSpinner.stop("Push failed! You'll need to handle that manually.");
-      log.error(error instanceof Error ? error.message : String(error));
-    }
+  if (options["push"]) {
+    await handlePush({ git, log, spinner });
   }
 
   if (commitCount > 0) {
     outro(
-      `Boom! ${commitCount} ${pluralize(commitCount, "commit")} that actually ${pluralize(commitCount, "makes", "make")} sense. You're welcome.`,
+      `Boom! ${commitCount} ${pluralize(
+        commitCount,
+        "commit",
+      )} that actually makes sense. You're welcome!`,
     );
   } else {
-    outro("No commits? Nothing to commit here. Time to write some code! 🙄");
+    outro("No commits? Time to get to work! 🙄");
   }
 }
 
