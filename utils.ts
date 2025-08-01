@@ -1,8 +1,14 @@
 import chalk from "chalk";
+import type { Git } from "./types";
 
 export const decapitalizeFirstLetter = (str: string) =>
   str.charAt(0).toLocaleLowerCase() + str.slice(1);
 
+/**
+ * Safely gets an error message from an unknown type.
+ * @param error The error object, which can be of any type.
+ * @returns A string representing the error message.
+ */
 export const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
@@ -15,6 +21,12 @@ export const pluralize = (
   return plural || `${singular}s`;
 };
 
+/**
+ * Wraps text to a specified maximum width.
+ * @param text The text to wrap.
+ * @param maxWidth The maximum width of each line (default: 80).
+ * @returns The wrapped text as a single string with newlines.
+ */
 export const wrapText = (text: string, maxWidth: number = 80): string => {
   const words = text.split(" ");
   const lines: string[] = [];
@@ -43,6 +55,11 @@ export const wrapText = (text: string, maxWidth: number = 80): string => {
   return lines.join("\n");
 };
 
+/**
+ * Returns a playful message based on the number of changes.
+ * @param changesCount The number of changes.
+ * @returns A categorized message string.
+ */
 export const categorizeChangesCount = (changesCount: number) => {
   if (changesCount < 10) return "Nice!";
   if (changesCount < 50) return chalk.bold("Damn, solid work!");
@@ -50,6 +67,12 @@ export const categorizeChangesCount = (changesCount: number) => {
   return chalk.red("F*ck me, you'd better buy your reviewers some coffee!");
 };
 
+/**
+ * Provides a status category based on a token count.
+ * Useful for giving user feedback on API usage, cost, and wait times.
+ * @param tokenCount The number of tokens.
+ * @returns An object with an emoji, label, and optional description and confirmation flag.
+ */
 export const categorizeTokenCount = (tokenCount: number) => {
   if (tokenCount < 5000) {
     return {
@@ -80,5 +103,21 @@ export const categorizeTokenCount = (tokenCount: number) => {
       description: "This exceeds most API limits and will be very expensive.",
       needsConfirmation: true,
     };
+  }
+};
+
+/**
+ * Retrieves the base branch of the repository, trying 'main' first, then 'master'.
+ * @param git A simple-git instance.
+ * @returns The name of the base branch, or undefined if neither is found.
+ */
+export const getBaseBranch = async (git: Git): Promise<string | undefined> => {
+  for (const branch of ["main", "master"]) {
+    try {
+      await git.revparse(["--verify", `origin/${branch}`]);
+      return branch;
+    } catch {
+      // Branch doesn't exist, so we try the next one
+    }
   }
 };
