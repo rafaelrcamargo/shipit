@@ -2,6 +2,8 @@
 
 > Because writing `fix stuff` gets old real quick...
 
+![Demo of shipit generating commit messages](shipit.gif)
+
 Tired of staring at your messy diff wondering what the hell to call this commit? This bad boy analyzes your chaotic changes and gets AI to do the heavy lifting, writing actual commit messages that don't suck. It's smart enough to group your scattered changes into logical commits, follows conventional commit standards _(because we're not animals)_, and can even whip up GitHub PRs with descriptions that won't make your teammates cry. Say goodbye to `wip`, `asdf`, and `checkpoint` for now. Your Git history will finally look like you know what you're doing[^1].
 
 [^1]: Self-criticism from the creator here, I made this tool because my own Git history was a disaster. :D
@@ -28,7 +30,7 @@ export GOOGLE_GENERATIVE_AI_API_KEY="..."
 
 ### Pre-built Binaries
 
-For convenience, pre-built binaries for `Linux`, `macOS`, and `Windows` are automatically generated for every push to `main` on GitHub. You can find them in the [Actions](https://github.com/rafaelrcamargo/shipit/actions) tab of the repository.
+For convenience, pre-built binaries for `macOS` _(`arm64` & `x64`)_, `Linux`, and `Windows` are automatically generated for every push to `main` on GitHub. You can find them in the [Actions](https://github.com/rafaelrcamargo/shipit/actions) tab of the repository.
 
 Each workflow run will produce a set of artifacts, one for each target platform. Simply download the binary for your system, make it executable, and you're good to go. This allows you to use `shipit` without needing to have `Bun` or any other development tools installed on your system.
 
