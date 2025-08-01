@@ -1,4 +1,4 @@
-name: Build and upload
+name: Build and upload artifacts
 
 on:
   push:
@@ -14,6 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - os: macos-15
+            target: bun-darwin-arm64
+            artifact_name: shipit-macos-arm64
+            ext: ""
+          - os: macos-15
+            target: bun-darwin-x64
+            artifact_name: shipit-macos-x64
+            ext: ""
           - os: ubuntu-latest
             target: bun-linux-x64-modern
             artifact_name: shipit-linux-x64
@@ -22,14 +30,6 @@ jobs:
             target: bun-windows-x64-modern
             artifact_name: shipit-windows-x64
             ext: ".exe"
-          - os: macos-15
-            target: bun-darwin-x64
-            artifact_name: shipit-macos-x64
-            ext: ""
-          - os: macos-15
-            target: bun-darwin-arm64
-            artifact_name: shipit-macos-arm64
-            ext: ""
 
     steps:
       - name: Checkout code
