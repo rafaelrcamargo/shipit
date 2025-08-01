@@ -218,9 +218,7 @@ Pick a lane:
       try {
         await git.add(commit.files);
       } catch (error) {
-        log.error(
-          `Dang, couldn't stage the files: ${getErrorMessage(error)}`,
-        );
+        log.error(`Dang, couldn't stage the files: ${getErrorMessage(error)}`);
         process.exit(1);
       }
 
