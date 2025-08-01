@@ -108,7 +108,7 @@ async function main() {
       outro(`You've got staged files AND specified paths? That's not gonna work.
 
 Pick a lane:
-- Unstage your sh*t: \`git reset\`
+- Unstage your files: \`git reset\`
 - Commit the staged stuff first: \`git commit\`
 - Or YOLO it without paths to handle everything`);
       process.exit(1);
@@ -164,7 +164,7 @@ Pick a lane:
   for await (const commit of elementStream) {
     log.message("", { symbol: chalk.gray("│") });
     if (commitCount === 0) {
-      commitSpinner.stop("Hot damn! Here come the goods...");
+      commitSpinner.stop("Here come the goods...");
     }
 
     const description = decapitalizeFirstLetter(commit.description);
@@ -219,7 +219,7 @@ Pick a lane:
         await git.add(commit.files);
       } catch (error) {
         log.error(
-          `Well sh*t, couldn't stage the files: ${getErrorMessage(error)}`,
+          `Dang, couldn't stage the files: ${getErrorMessage(error)}`,
         );
         process.exit(1);
       }

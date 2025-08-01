@@ -171,7 +171,7 @@ export async function handlePullRequest({
         }
       }
     } catch (error) {
-      log.error(`F*ck! Couldn't open PR in browser: ${getErrorMessage(error)}`);
+      log.error(`Dang! Couldn't open PR in browser: ${getErrorMessage(error)}`);
       log.info("Manual backup plan:");
       log.info(
         `${chalk.cyan(

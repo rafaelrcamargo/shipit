@@ -63,8 +63,8 @@ export const wrapText = (text: string, maxWidth: number = 80): string => {
 export const categorizeChangesCount = (changesCount: number) => {
   if (changesCount < 10) return "Nice!";
   if (changesCount < 50) return chalk.bold("Damn, solid work!");
-  if (changesCount < 100) return chalk.green("Holy sh*t, we cookin'!");
-  return chalk.red("F*ck me, you'd better buy your reviewers some coffee!");
+  if (changesCount < 100) return chalk.green("Holy... we cookin'!");
+  return chalk.red("Yikes, you'd better buy your reviewers some coffee!");
 };
 
 /**
@@ -92,7 +92,7 @@ export const categorizeTokenCount = (tokenCount: number) => {
   } else if (tokenCount < 100000) {
     return {
       emoji: "🔴",
-      label: `holy sh*t territory ${chalk.dim("(may hit rate limits)")}`,
+      label: `woah there territory ${chalk.dim("(may hit rate limits)")}`,
       description: "This will take 10+ seconds and cost significantly more.",
       needsConfirmation: true,
     };
