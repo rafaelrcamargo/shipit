@@ -10,7 +10,7 @@
     "format:check": "prettier --ignore-unknown --check . --ignore-path .gitignore",
     "lint": "eslint .",
     "postinstall": "simple-git-hooks",
-    "preinstall": "pnpm dlx only-allow bun"
+    "preinstall": "bunx only-allow bun"
   },
   "peerDependencies": {
     "typescript": "^5.8.3"
@@ -52,6 +52,6 @@
     ]
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm lint-staged"
+    "pre-commit": "bun lint-staged"
   }
 }
