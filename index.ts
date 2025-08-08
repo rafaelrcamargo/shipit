@@ -16,7 +16,6 @@ import { handlePullRequest } from "./pr.ts";
 import { createPrompts } from "./prompts.ts";
 import { detectAndConfigureAIProvider } from "./providers.ts";
 import { handlePush } from "./push.ts";
-import type { AIProviderConfig } from "./types.ts";
 import {
   categorizeChangesCount,
   categorizeTokenCount,
@@ -56,7 +55,7 @@ async function main() {
     force: options["force"] || options["yes"],
   });
 
-  let aiConfig: AIProviderConfig | undefined;
+  let aiConfig: ReturnType<typeof detectAndConfigureAIProvider>;
   try {
     aiConfig = detectAndConfigureAIProvider();
   } catch (error) {
@@ -269,7 +268,14 @@ Pick a lane:
   }
 
   if (commitCount > 0 && !options["force"] && !options["yes"]) {
-    await handlePullRequest({ git, log, spinner, confirm, options, aiConfig });
+    await handlePullRequest({
+      git,
+      log,
+      spinner,
+      confirm,
+      options,
+      model: aiConfig.model,
+    });
   }
 
   if (options["push"]) {

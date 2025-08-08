@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import type { Git } from "./types";
+import type { SimpleGit } from "simple-git";
 
 export const categorizeChangesCount = (changesCount: number) => {
   if (changesCount < 10) return "Nice!";
@@ -101,7 +101,7 @@ export const getErrorMessage = (error: unknown): string =>
  * @returns The name of the base branch.
  * @throws If no base branch is found.
  */
-export const getBaseBranch = async (git: Git): Promise<string> => {
+export const getBaseBranch = async (git: SimpleGit): Promise<string> => {
   for (const branch of ["main", "master"]) {
     try {
       await git.revparse(["--verify", `origin/${branch}`]);
