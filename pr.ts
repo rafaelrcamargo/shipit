@@ -10,7 +10,7 @@ export async function handlePullRequest({
   spinner,
   confirm,
   options,
-  google,
+  aiConfig,
 }: PrHandlerParams): Promise<void> {
   try {
     const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
@@ -101,7 +101,7 @@ export async function handlePullRequest({
     const commits = await git.log([`origin/${baseBranch}..HEAD`]);
 
     const { object: prInfo } = await generateObject({
-      model: google("gemini-2.5-flash"),
+      model: aiConfig.model,
       schema: prSchema,
       prompt: prInstruction(commits.all),
     });

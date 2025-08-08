@@ -9,7 +9,13 @@ Tired of staring at your messy diff wondering what the hell to call this commit?
 [^1]: Self-criticism from the creator here, I made this tool because my own Git history was a disaster. :D
 
 > [!IMPORTANT]
-> This tool requires the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable to be set. You can obtain your API key at <https://aistudio.google.com/app/apikey>. The free tier should be sufficient for running this tool.
+> This tool requires one of the following AI provider API keys to be set as an environment variable:
+>
+> - **Claude (Anthropic)**: `ANTHROPIC_API_KEY` - Get yours at <https://console.anthropic.com/>
+> - **GPT (OpenAI)**: `OPENAI_API_KEY` - Get yours at <https://platform.openai.com/api-keys>
+> - **Gemini (Google)**: `GOOGLE_GENERATIVE_AI_API_KEY` - Get yours at <https://aistudio.google.com/app/apikey>
+>
+> The tool will automatically detect and use the first available API key in the order above. The free tiers should be sufficient for running this tool.
 
 ## Setup
 
@@ -17,7 +23,10 @@ Tired of staring at your messy diff wondering what the hell to call this commit?
 # Build it and copy to /usr/local/bin/shipit
 bun run build && sudo bun run copy
 
-# Ensure your API key is set. You can get one at https://aistudio.google.com/app/apikey.
+# Set one of these API keys (the tool will automatically detect which one to use):
+
+export ANTHROPIC_API_KEY="..."
+export OPENAI_API_KEY="..."
 export GOOGLE_GENERATIVE_AI_API_KEY="..."
 ```
 

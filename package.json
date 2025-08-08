@@ -16,7 +16,9 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.0",
     "@ai-sdk/google": "^2.0.0",
+    "@ai-sdk/openai": "^2.0.0",
     "@clack/prompts": "1.0.0-alpha.1",
     "@types/bun": "latest",
     "@types/node": "^24.1.0",

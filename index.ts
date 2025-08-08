@@ -1,4 +1,3 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamObject } from "ai";
 import { CAC } from "cac";
 import chalk from "chalk";
@@ -17,6 +16,7 @@ import {
   categorizeChangesCount,
   categorizeTokenCount,
   decapitalizeFirstLetter,
+  detectAndConfigureAIProvider,
   getErrorMessage,
   pluralize,
   wrapText,
@@ -52,20 +52,20 @@ async function main() {
     force: options["force"] || options["yes"],
   });
 
-  const apiKey = process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
-
-  if (!apiKey) {
-    log.error("GOOGLE_GENERATIVE_AI_API_KEY is not set");
+  let aiConfig;
+  try {
+    aiConfig = detectAndConfigureAIProvider();
+  } catch (error) {
+    log.error(getErrorMessage(error));
     process.exit(1);
   }
-
-  const google = createGoogleGenerativeAI({ apiKey });
 
   if (!options["silent"] && !options["force"] && !options["yes"]) {
     note(
       chalk.italic("Because writing 'fix stuff' gets old real quick..."),
       chalk.bold("🧹 Git Your Sh*t Together"),
     );
+    log.info(`Using ${chalk.bold(aiConfig.name)} for AI assistance`);
   }
 
   const analysisSpinner = spinner();
@@ -149,8 +149,10 @@ Pick a lane:
   }
 
   const { elementStream } = streamObject({
-    model: google("gemini-2.5-flash"),
-    providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
+    model: aiConfig.model,
+    ...(aiConfig.provider === "google" && {
+      providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
+    }),
     output: "array",
     schema: responseSchema,
     system: systemInstruction,
@@ -246,7 +248,7 @@ Pick a lane:
   }
 
   if (commitCount > 0 && !options["force"] && !options["yes"]) {
-    await handlePullRequest({ git, log, spinner, confirm, options, google });
+    await handlePullRequest({ git, log, spinner, confirm, options, aiConfig });
   }
 
   if (options["push"]) {

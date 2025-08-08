@@ -1,5 +1,8 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import chalk from "chalk";
-import type { Git } from "./types";
+import type { AIProviderConfig, Git } from "./types";
 
 export const decapitalizeFirstLetter = (str: string) =>
   str.charAt(0).toLocaleLowerCase() + str.slice(1);
@@ -120,4 +123,48 @@ export const getBaseBranch = async (git: Git): Promise<string | undefined> => {
       // Branch doesn't exist, so we try the next one
     }
   }
+};
+
+/**
+ * Detects available AI provider based on environment variables and configures the appropriate provider.
+ * @returns The AI provider configuration object.
+ * @throws Error if no valid API key is found.
+ */
+export const detectAndConfigureAIProvider = (): AIProviderConfig => {
+  const anthropicKey = process.env["ANTHROPIC_API_KEY"];
+  if (anthropicKey) {
+    const anthropic = createAnthropic({ apiKey: anthropicKey });
+    return {
+      provider: "anthropic",
+      model: anthropic("claude-3-5-sonnet-20241022"),
+      name: "Claude 3.5 Sonnet",
+    };
+  }
+
+  const openaiKey = process.env["OPENAI_API_KEY"];
+  if (openaiKey) {
+    const openai = createOpenAI({ apiKey: openaiKey });
+    return {
+      provider: "openai",
+      model: openai("gpt-4o"),
+      name: "GPT-4o",
+    };
+  }
+
+  const googleKey = process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
+  if (googleKey) {
+    const google = createGoogleGenerativeAI({ apiKey: googleKey });
+    return {
+      provider: "google",
+      model: google("gemini-2.5-flash"),
+      name: "Gemini 2.5 Flash",
+    };
+  }
+
+  throw new Error(
+    "No AI provider API key found. Please set one of:\n" +
+      "- ANTHROPIC_API_KEY for Claude\n" +
+      "- OPENAI_API_KEY for GPT\n" +
+      "- GOOGLE_GENERATIVE_AI_API_KEY for Gemini",
+  );
 };
