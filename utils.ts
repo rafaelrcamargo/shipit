@@ -154,7 +154,6 @@ export const detectAndConfigureAIProvider = (): AIProviderConfig => {
     };
   }
 
-  // Check for Google Gemini API key (fallback)
   const googleKey = process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
   if (googleKey) {
     const google = createGoogleGenerativeAI({ apiKey: googleKey });
