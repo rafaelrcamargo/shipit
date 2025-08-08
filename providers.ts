@@ -1,7 +1,6 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
-import type { AIProviderConfig } from "./types";
 
 /**
  * Detects the available AI provider based on environment variables.
@@ -9,30 +8,27 @@ import type { AIProviderConfig } from "./types";
  * @returns The AI provider configuration object.
  * @throws Error if a valid API key is not found.
  */
-export const detectAndConfigureAIProvider = (): AIProviderConfig => {
-  if (process.env["OPENAI_API_KEY"]) {
+export const detectAndConfigureAIProvider = () => {
+  if (process.env["OPENAI_API_KEY"])
     return {
       provider: "OpenAI",
       model: openai("gpt-5-nano"),
       name: "GPT-5 Nano",
     };
-  }
 
-  if (process.env["ANTHROPIC_API_KEY"]) {
+  if (process.env["ANTHROPIC_API_KEY"])
     return {
       provider: "Anthropic",
       model: anthropic("claude-sonnet-4-20250514"),
       name: "Claude Sonnet 4",
     };
-  }
 
-  if (process.env["GOOGLE_GENERATIVE_AI_API_KEY"]) {
+  if (process.env["GOOGLE_GENERATIVE_AI_API_KEY"])
     return {
       provider: "Google",
       model: google("gemini-2.5-flash"),
       name: "Gemini 2.5 Flash",
     };
-  }
 
   throw new Error(
     "No AI provider API key found. Please set one of the following:\n" +
