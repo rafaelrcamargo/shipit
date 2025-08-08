@@ -12,7 +12,7 @@ import type { AIProviderConfig } from "./types";
 export const detectAndConfigureAIProvider = (): AIProviderConfig => {
   if (process.env["OPENAI_API_KEY"]) {
     return {
-      provider: "openai",
+      provider: "OpenAI",
       model: openai("gpt-5"),
       name: "GPT-5",
     };
@@ -20,7 +20,7 @@ export const detectAndConfigureAIProvider = (): AIProviderConfig => {
 
   if (process.env["ANTHROPIC_API_KEY"]) {
     return {
-      provider: "anthropic",
+      provider: "Anthropic",
       model: anthropic("claude-sonnet-4-20250514"),
       name: "Claude Sonnet 4",
     };
@@ -28,7 +28,7 @@ export const detectAndConfigureAIProvider = (): AIProviderConfig => {
 
   if (process.env["GOOGLE_GENERATIVE_AI_API_KEY"]) {
     return {
-      provider: "google",
+      provider: "Google",
       model: google("gemini-2.5-flash"),
       name: "Gemini 2.5 Flash",
     };

@@ -18,7 +18,7 @@ export type OpenAIProvider = ReturnType<typeof createOpenAI>;
 export type AIProvider = GoogleProvider | AnthropicProvider | OpenAIProvider;
 
 export type AIProviderConfig = {
-  provider: "google" | "anthropic" | "openai";
+  provider: string;
   model: LanguageModel;
   name: string;
 };

@@ -16,6 +16,7 @@ import { handlePullRequest } from "./pr.ts";
 import { createPrompts } from "./prompts.ts";
 import { detectAndConfigureAIProvider } from "./providers.ts";
 import { handlePush } from "./push.ts";
+import type { AIProviderConfig } from "./types.ts";
 import {
   categorizeChangesCount,
   categorizeTokenCount,
@@ -55,7 +56,7 @@ async function main() {
     force: options["force"] || options["yes"],
   });
 
-  let aiConfig;
+  let aiConfig: AIProviderConfig | undefined;
   try {
     aiConfig = detectAndConfigureAIProvider();
   } catch (error) {
@@ -68,7 +69,9 @@ async function main() {
       chalk.italic("Because writing 'fix stuff' gets old real quick..."),
       chalk.bold("🧹 Git Your Sh*t Together"),
     );
-    log.info(`Using ${chalk.bold(aiConfig.name)} for AI assistance`);
+    log.info(
+      `Detected ${chalk.bold(aiConfig.provider)} API Key. Using ${chalk.bold(aiConfig.name)} for AI assistance.`,
+    );
   }
 
   const analysisSpinner = spinner();
@@ -185,8 +188,6 @@ Pick a lane:
   for await (const commit of elementStream) {
     if (commitCount === 0) {
       commitSpinner.stop("Here come the goods...");
-    } else {
-      log.message("", { symbol: chalk.gray("│") });
     }
 
     const description = decapitalizeFirstLetter(commit.description);
