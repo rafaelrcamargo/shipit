@@ -1,5 +1,12 @@
-import type { PushHandlerParams } from "./types";
+import type { SimpleGit } from "simple-git";
+import type { Prompts } from "./prompts";
 import { getErrorMessage, pluralize } from "./utils";
+
+type PushHandlerParams = {
+  git: SimpleGit;
+  log: Prompts["log"];
+  spinner: Prompts["spinner"];
+};
 
 export async function handlePush({
   git,
