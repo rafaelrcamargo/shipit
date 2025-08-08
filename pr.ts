@@ -1,8 +1,18 @@
-import { generateObject } from "ai";
+import { generateObject, type LanguageModel } from "ai";
 import chalk from "chalk";
 import { prInstruction, prSchema } from "./constants";
-import type { PrHandlerParams } from "./types";
 import { getBaseBranch, getErrorMessage, pluralize, wrapText } from "./utils";
+import type { SimpleGit } from "simple-git"
+import type { Prompts } from "./prompts"
+
+type PrHandlerParams = {
+  git: SimpleGit;
+  log: Prompts["log"];
+  spinner: Prompts["spinner"];
+  confirm: Prompts["confirm"];
+  options: { [key: string]: boolean };
+  model: LanguageModel;
+};
 
 export async function handlePullRequest({
   git,
@@ -10,7 +20,7 @@ export async function handlePullRequest({
   spinner,
   confirm,
   options,
-  aiConfig,
+  model,
 }: PrHandlerParams): Promise<void> {
   try {
     const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
@@ -101,7 +111,7 @@ export async function handlePullRequest({
     const commits = await git.log([`origin/${baseBranch}..HEAD`]);
 
     const { object: prInfo } = await generateObject({
-      model: aiConfig.model,
+      model,
       schema: prSchema,
       prompt: prInstruction(commits.all),
     });
