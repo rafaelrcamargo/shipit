@@ -132,7 +132,6 @@ export const getBaseBranch = async (git: Git): Promise<string | undefined> => {
  * @throws Error if no valid API key is found.
  */
 export const detectAndConfigureAIProvider = (): AIProviderConfig => {
-  // Check for Anthropic API key
   const anthropicKey = process.env["ANTHROPIC_API_KEY"];
   if (anthropicKey) {
     const anthropic = createAnthropic({ apiKey: anthropicKey });
