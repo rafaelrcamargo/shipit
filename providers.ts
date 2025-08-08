@@ -13,8 +13,8 @@ export const detectAndConfigureAIProvider = (): AIProviderConfig => {
   if (process.env["OPENAI_API_KEY"]) {
     return {
       provider: "OpenAI",
-      model: openai("gpt-5"),
-      name: "GPT-5",
+      model: openai("gpt-5-nano"),
+      name: "GPT-5 Nano",
     };
   }
 
