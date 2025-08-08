@@ -23,15 +23,10 @@ Tired of staring at your messy diff wondering what the hell to call this commit?
 # Build it and copy to /usr/local/bin/shipit
 bun run build && sudo bun run copy
 
-# Set one of these API keys (tool will auto-detect which one to use):
+# Set one of these API keys (the tool will automatically detect which one to use):
 
-# For Claude (Anthropic) - Recommended
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# For GPT (OpenAI)
-export OPENAI_API_KEY="sk-..."
-
-# For Gemini (Google) - Fallback option
+export ANTHROPIC_API_KEY="..."
+export OPENAI_API_KEY="..."
 export GOOGLE_GENERATIVE_AI_API_KEY="..."
 ```
 
