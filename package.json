@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "postinstall": "simple-git-hooks",
     "preinstall": "bunx only-allow bun",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && rm tsconfig.tsbuildinfo"
   },
   "peerDependencies": {
     "typescript": "^5.8.3"
