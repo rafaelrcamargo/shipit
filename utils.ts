@@ -142,7 +142,6 @@ export const detectAndConfigureAIProvider = (): AIProviderConfig => {
     };
   }
 
-  // Check for OpenAI API key
   const openaiKey = process.env["OPENAI_API_KEY"];
   if (openaiKey) {
     const openai = createOpenAI({ apiKey: openaiKey });
