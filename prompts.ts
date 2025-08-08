@@ -1,5 +1,7 @@
 import * as clack from "@clack/prompts";
 
+export type Prompts = typeof clack;
+
 /**
  * Wraps the `@clack/prompts` library to conditionally suppress or auto-confirm prompts.
  * This enables a "silent" mode where all output (except errors) is hidden, and a "force"
@@ -10,7 +12,7 @@ import * as clack from "@clack/prompts";
  * @param options.force - If true, automatically confirm all prompts.
  * @returns A clack instance, which may be a proxied version of the original.
  */
-export function createPrompts({ silent = false, force = false }): typeof clack {
+export function createPrompts({ silent = false, force = false }): Prompts {
   if (silent) {
     return {
       ...clack,
