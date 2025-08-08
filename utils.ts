@@ -127,7 +127,6 @@ export const getBaseBranch = async (git: Git): Promise<string | undefined> => {
 
 /**
  * Detects available AI provider based on environment variables and configures the appropriate provider.
- * Prioritizes Anthropic, then OpenAI, then Google Gemini.
  * @returns The AI provider configuration object.
  * @throws Error if no valid API key is found.
  */
