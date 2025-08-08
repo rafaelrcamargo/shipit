@@ -183,9 +183,10 @@ Pick a lane:
 
   let commitCount = 0;
   for await (const commit of elementStream) {
-    log.message("", { symbol: chalk.gray("│") });
     if (commitCount === 0) {
       commitSpinner.stop("Here come the goods...");
+    } else {
+      log.message("", { symbol: chalk.gray("│") });
     }
 
     const description = decapitalizeFirstLetter(commit.description);
