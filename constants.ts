@@ -178,18 +178,18 @@ export const responseSchema = z.object({
       "other",
     ])
     .describe("Conventional commit type"),
-  scope: z.string().optional().describe("Optional scope for the changes"),
+  scope: z.string().nullable().describe("Optional scope for the changes"),
   description: z.string().describe("Brief description of changes"),
   body: z
     .string()
-    .optional()
+    .nullable()
     .describe("Optional multi-line body with bullet points or paragraphs"),
   breaking: z
     .boolean()
     .describe("Boolean indicating if this introduces breaking changes"),
   footers: z
     .array(z.string())
-    .optional()
+    .nullable()
     .describe(
       "Array of footer strings (e.g., 'BREAKING CHANGE: ...', 'Closes #123')",
     ),

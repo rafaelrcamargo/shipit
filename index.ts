@@ -1,3 +1,6 @@
+import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
+import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import type { OpenAIProviderOptions } from "@ai-sdk/openai/internal";
 import { streamObject } from "ai";
 import { CAC } from "cac";
 import chalk from "chalk";
@@ -11,12 +14,12 @@ import {
 import { version } from "./package.json" with { type: "json" };
 import { handlePullRequest } from "./pr.ts";
 import { createPrompts } from "./prompts.ts";
+import { detectAndConfigureAIProvider } from "./providers.ts";
 import { handlePush } from "./push.ts";
 import {
   categorizeChangesCount,
   categorizeTokenCount,
   decapitalizeFirstLetter,
-  detectAndConfigureAIProvider,
   getErrorMessage,
   pluralize,
   wrapText,
@@ -150,10 +153,26 @@ Pick a lane:
 
   const { elementStream } = streamObject({
     model: aiConfig.model,
-    ...(aiConfig.provider === "google" && {
-      providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
-    }),
+    providerOptions: {
+      google: {
+        thinkingConfig: { thinkingBudget: 0 },
+        structuredOutputs: true,
+        responseModalities: ["TEXT"],
+        threshold: "OFF",
+      } satisfies GoogleGenerativeAIProviderOptions,
+      openai: {
+        reasoningEffort: "low",
+        structuredOutputs: true,
+        strictJsonSchema: true,
+      } satisfies OpenAIProviderOptions,
+      anthropic: {
+        thinking: { type: "disabled" },
+        sendReasoning: false,
+      } satisfies AnthropicProviderOptions,
+    },
     output: "array",
+    schemaName: "commit",
+    schemaDescription: "Guidelines for generating commit messages",
     schema: responseSchema,
     system: systemInstruction,
     prompt: userInstruction(status, diffSummary, diff),
