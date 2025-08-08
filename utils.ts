@@ -1,11 +1,6 @@
 import chalk from "chalk";
 import type { Git } from "./types";
 
-/**
- * Returns a playful message based on the number of changes.
- * @param changesCount The number of changes.
- * @returns A categorized message string.
- */
 export const categorizeChangesCount = (changesCount: number) => {
   if (changesCount < 10) return "Nice!";
   if (changesCount < 50) return chalk.bold("Damn, solid work!");
@@ -13,12 +8,6 @@ export const categorizeChangesCount = (changesCount: number) => {
   return chalk.red("Yikes, you'd better buy your reviewers some coffee!");
 };
 
-/**
- * Provides a status category based on a token count.
- * Useful for giving user feedback on API usage, cost, and wait times.
- * @param tokenCount The number of tokens.
- * @returns An object with an emoji, label, and optional description and confirmation flag.
- */
 export const categorizeTokenCount = (tokenCount: number) => {
   if (tokenCount < 5000) {
     return {
@@ -109,9 +98,10 @@ export const getErrorMessage = (error: unknown): string =>
 /**
  * Retrieves the base branch of the repository, trying 'main' first, then 'master'.
  * @param git A simple-git instance.
- * @returns The name of the base branch, or undefined if neither is found.
+ * @returns The name of the base branch.
+ * @throws If no base branch is found.
  */
-export const getBaseBranch = async (git: Git): Promise<string | undefined> => {
+export const getBaseBranch = async (git: Git): Promise<string> => {
   for (const branch of ["main", "master"]) {
     try {
       await git.revparse(["--verify", `origin/${branch}`]);
@@ -120,4 +110,6 @@ export const getBaseBranch = async (git: Git): Promise<string | undefined> => {
       // Branch doesn't exist, so we try the next one
     }
   }
+
+  throw new Error("No base branch found");
 };
