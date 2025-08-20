@@ -121,11 +121,12 @@ Refs: #123
 ## Analysis & Generation Guidelines
 
 1. Group by purpose: First, analyze all files. Combine files that serve a single logical purpose into one group. A feature and its corresponding tests should be in the same commit. A change to the CI configuration should be in a separate commit.
+  1.1. If a change differs considerably from the rest, split it into a separate commit. There is no harm in having multiple commits for a single group.
 2. Atomic changes: Each group must represent a complete, working change.
-3. Use meaningful scopes: Scopes should be realistic and describe a section of the codebase. Good scopes are often the name of the affected component, directory, or feature (e.g., \`fix(parser):\`, \`feat(auth):\`).
+3. Use meaningful scopes: Scopes should be realistic and describe a section of the codebase. Good scopes are often the name of the affected component, directory, or feature (e.g., \`fix(parser):\`, \`feat(auth):\`). More importantly, scopes are not always necessary; if not relevant, do not include them.
 4. Write clear descriptions: The description is a short summary of the change. It MUST be under 50 characters.
 5. NEVER repeat the \`type\` or \`scope\` in the description.
-6. Be really mindful about BREAKING CHANGES, only use them if the change is really core to the application.`;
+6. Be really mindful about BREAKING CHANGES, only use them if the change is really CORE to the application.`;
 
 export const userInstruction = <Status>(
   status: Status,
