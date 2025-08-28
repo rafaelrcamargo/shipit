@@ -132,7 +132,9 @@ export const userInstruction = <Status>(
   status: Status,
   diffSummary: DiffResult,
   diff: string,
-) => `## Instructions
+  appendix?: string,
+) => {
+  let prompt = `## Instructions
 
 You are an expert software developer tasked with writing a commit message for the following changes. Adhere to the **Conventional Commits** specification. The commit message should have a concise subject line and a more detailed body explaining the "what" and "why" of the changes.
 
@@ -154,11 +156,22 @@ ${JSON.stringify(diffSummary)}
 
 \`\`\`diff
 ${diff}
-\`\`\`
+\`\`\``;
+
+  if (appendix && appendix.trim()) {
+    prompt += `
+
+## Additional Context
+
+${appendix.trim()}`;
+  }
+
+  return prompt + `
 
 ---
 
 ## Commit Message:`;
+};
 
 export const responseSchema = z.object({
   files: z

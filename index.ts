@@ -37,22 +37,35 @@ cli
   .option("-f,--force", "Automatically accept all commits, same as --yes")
   .option("-u,--unsafe", "Skip token count verification")
   .option("-p, --push", "Push the changes if any after processing all commits")
-  .option("--pr", "Automatically create a pull request");
+  .option("--pr", "Automatically create a pull request")
+  .option(
+    "-a,--appendix <text>",
+    "Add extra context to append to the commit generation prompt",
+  );
 
 cli.help();
 cli.version(version);
 
 const { args, options } = cli.parse() as {
   args: string[];
-  options: { [key: string]: boolean };
+  options: {
+    silent?: boolean;
+    yes?: boolean;
+    force?: boolean;
+    unsafe?: boolean;
+    push?: boolean;
+    pr?: boolean;
+    appendix?: string;
+    [key: string]: boolean | string | undefined;
+  };
 };
 
 if (options["help"] || options["version"]) process.exit(0);
 
 async function main() {
   const { log, note, outro, spinner, confirm } = createPrompts({
-    silent: options["silent"],
-    force: options["force"] || options["yes"],
+    silent: options.silent || false,
+    force: options.force || options.yes || false,
   });
 
   let aiConfig: ReturnType<typeof detectAndConfigureAIProvider>;
@@ -63,7 +76,7 @@ async function main() {
     process.exit(1);
   }
 
-  if (!options["silent"] && !options["force"] && !options["yes"]) {
+  if (!options.silent && !options.force && !options.yes) {
     note(
       chalk.italic("Because writing 'fix stuff' gets old real quick..."),
       chalk.bold("🧹 Git Your Sh*t Together"),
@@ -132,12 +145,12 @@ Pick a lane:
     )}!`,
   );
 
-  const prompt = userInstruction(status, diffSummary, diff);
+  const prompt = userInstruction(status, diffSummary, diff, options.appendix);
 
   const actualTokenCount = countTokens(prompt);
   const category = categorizeTokenCount(actualTokenCount);
 
-  if (category.needsConfirmation && !options["unsafe"]) {
+  if (category.needsConfirmation && !options.unsafe) {
     const shouldContinue = await confirm({
       message: `${chalk.bold(
         `${category.emoji ? `${category.emoji} ` : ""}Whoa there!`,
@@ -177,7 +190,7 @@ Pick a lane:
     schemaDescription: "Guidelines for generating commit messages",
     schema: responseSchema,
     system: systemInstruction,
-    prompt: userInstruction(status, diffSummary, diff),
+    prompt: userInstruction(status, diffSummary, diff, options.appendix),
   });
 
   const commitSpinner = spinner();
@@ -267,18 +280,25 @@ Pick a lane:
     }
   }
 
-  if (commitCount > 0 && !options["force"] && !options["yes"]) {
+  if (commitCount > 0 && !options.force && !options.yes) {
     await handlePullRequest({
       git,
       log,
       spinner,
       confirm,
-      options,
+      options: {
+        pr: options.pr || false,
+        push: options.push || false,
+        silent: options.silent || false,
+        force: options.force || false,
+        yes: options.yes || false,
+        unsafe: options.unsafe || false,
+      },
       model: aiConfig.model,
     });
   }
 
-  if (options["push"]) {
+  if (options.push) {
     await handlePush({ git, log, spinner });
   }
 
