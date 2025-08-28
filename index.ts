@@ -49,6 +49,7 @@ cli.version(version);
 const { args, options } = cli.parse() as {
   args: string[];
   options: {
+    // CLI options
     silent?: boolean;
     yes?: boolean;
     force?: boolean;
@@ -56,16 +57,19 @@ const { args, options } = cli.parse() as {
     push?: boolean;
     pr?: boolean;
     appendix?: string;
-    [key: string]: boolean | string | undefined;
+
+    // CAC options
+    help?: boolean;
+    version?: boolean;
   };
 };
 
-if (options["help"] || options["version"]) process.exit(0);
+if (options.help || options.version) process.exit(0);
 
 async function main() {
   const { log, note, outro, spinner, confirm } = createPrompts({
-    silent: options.silent || false,
-    force: options.force || options.yes || false,
+    silent: !!options.silent,
+    force: !!(options.force || options.yes),
   });
 
   let aiConfig: ReturnType<typeof detectAndConfigureAIProvider>;
@@ -286,14 +290,9 @@ Pick a lane:
       log,
       spinner,
       confirm,
-      options: {
-        pr: options.pr || false,
-        push: options.push || false,
-        silent: options.silent || false,
-        force: options.force || false,
-        yes: options.yes || false,
-        unsafe: options.unsafe || false,
-      },
+      options: Object.fromEntries(
+        Object.entries(options).map(([key, value]) => [key, !!value]),
+      ),
       model: aiConfig.model,
     });
   }
