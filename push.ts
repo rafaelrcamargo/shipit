@@ -25,10 +25,20 @@ export async function handlePush({
       return;
     }
 
-    const unpushedCommits = await git.log([
-      `origin/${branch}..HEAD`,
-      "--oneline",
-    ]);
+    // Check if remote tracking branch exists
+    let unpushedCommits;
+    try {
+      unpushedCommits = await git.log([
+        `origin/${branch}..HEAD`,
+        "--oneline",
+      ]);
+    } catch {
+      // Remote tracking branch doesn't exist, this is likely the first push
+      pushSpinner.message(`First push to origin/${branch}...`);
+      await git.push("origin", branch, ["--set-upstream"]);
+      pushSpinner.stop(`Pushed new branch to origin/${branch}`);
+      return;
+    }
 
     if (unpushedCommits.total === 0) {
       pushSpinner.stop("Nothing to push. Your branch is up to date. 👍");
