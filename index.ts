@@ -288,7 +288,7 @@ Pick a lane:
     await handlePush({ git, log, spinner });
   }
 
-  if ((commitCount > 0 && (!options.force && !options.yes)) || options.pr) {
+  if ((commitCount > 0 && !options.force && !options.yes) || options.pr) {
     await handlePullRequest({
       git,
       log,

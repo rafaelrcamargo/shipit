@@ -45,10 +45,18 @@ async function readFile(git: SimpleGit, path: string): Promise<string> {
  */
 async function listDirectory(git: SimpleGit, path: string): Promise<string[]> {
   try {
-    const output = await git.raw(["ls-tree", "--name-only", "HEAD", path]);
+    // Add trailing slash to ensure we list files within the directory
+    const dirPath = path.endsWith("/") ? path : `${path}/`;
+    const output = await git.raw(["ls-tree", "--name-only", "HEAD", dirPath]);
     return output
       .split("\n")
       .map((file) => file.trim())
+      .filter(Boolean)
+      .map((file) => {
+        // Extract just the filename from the full path
+        const parts = file.split("/");
+        return parts[parts.length - 1] || "";
+      })
       .filter(Boolean);
   } catch {
     return [];
