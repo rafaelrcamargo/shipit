@@ -46,15 +46,49 @@ Each workflow run will produce a set of artifacts, one for each target platform.
 ## Usage
 
 ```bash
+# Basic usage
 shipit                    # Process all changed files
 shipit index.ts utils.ts  # Process specific files
 
 shipit --help             # Show help and all options
-
-# Common use cases
-shipit -fu                # The want-to-get-shit-done combo
-shipit -y --pr            # The no-time-to-waste combo, get it in there
 ```
+
+### Flags
+
+| Flag | Long Form           | Description                                               |
+| ---- | ------------------- | --------------------------------------------------------- |
+| `-s` | `--silent`          | Only log fatal errors to the console                      |
+| `-y` | `--yes`             | Automatically accept all commits (same as `--force`)      |
+| `-f` | `--force`           | Automatically accept all commits (same as `--yes`)        |
+| `-u` | `--unsafe`          | Skip token count verification                             |
+| `-p` | `--push`            | Push the changes after processing all commits             |
+|      | `--pr`              | Create a pull request (works with or without new commits) |
+| `-a` | `--appendix <text>` | Add extra context to the commit generation prompt         |
+
+### Common Examples
+
+```bash
+# The want-to-get-shit-done combo
+shipit -fu                # Force commits + skip token verification
+
+# The no-time-to-waste combo
+shipit -y --pr            # Auto-accept commits + create PR
+
+# Silent workflow with push
+shipit -spy               # Silent + push + auto-accept
+
+# Add context to help AI understand your changes
+shipit -a "refactoring for performance"
+
+# Full automation: commit, push, and create PR
+shipit -y --push --pr
+```
+
+### PR Template Support
+
+`shipit` automatically detects and follows your repository's PR templates when generating pull requests. The AI will structure the PR description according to your template's format, ensuring consistency with your team's guidelines.
+
+When a template is found, you'll see: `Found PR template at {path} - following repository guidelines! 📝`
 
 > [!NOTE]
 > To generate pull requests with `--pr`, you'll need the [GitHub CLI](https://cli.github.com/) installed and authenticated. For private repositories, ensure you have the necessary permissions.
