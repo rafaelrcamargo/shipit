@@ -1,5 +1,6 @@
 import type { DefaultLogFields, DiffResult, ListLogLine } from "simple-git";
 import { z } from "zod";
+import type { PrTemplate } from "./template";
 
 export const systemInstruction = `# Expert \`git\` companion
 
@@ -207,22 +208,37 @@ export const responseSchema = z.object({
 
 export const prInstruction = (
   commits: readonly (DefaultLogFields & ListLogLine)[],
-) => `# Expert Pull Request Generator
+  template?: PrTemplate,
+) => {
+  const basePrompt = `# Pull Request Description Generator
 
-You are an expert software engineer specializing in creating clear, compelling pull request descriptions. Your task is to analyze a series of commits and generate a professional PR title and body that will help reviewers understand the changes quickly and thoroughly.
+You are a pragmatic software engineer focused on writing accurate, concise pull request descriptions. Your task is to analyze commits and generate a factual PR title and body that clearly describes what was changed and why.
 
-Your persona is that of a senior developer who values clarity, context, and efficient communication.
+Your persona is that of a senior developer who values precision, clarity, and straightforward communication.
 
 ## Core Directives
 
-1. **Synthesize, don't summarize**: Don't just list commits. Understand the overarching purpose and present it coherently.
-2. **Context is king**: Explain the "why" behind the changes, not just the "what."
-3. **Reviewer-focused**: Write for busy reviewers who need to understand the impact quickly.
-4. **Professional tone**: Clear, confident, and helpful. No fluff or unnecessary words.
+1. **Be factual**: Describe what actually changed without embellishment.
+2. **Be concise**: Use precise language and avoid superlatives or dramatic words.
+3. **Focus on substance**: Explain the technical changes and their purpose.
+4. **Stay grounded**: Write realistic descriptions that match the actual scope of changes.
+5. **Avoid exaggeration**: Never use words like "dramatically", "significantly", "greatly", "massively", or similar intensifiers.
+6. **Match scope to impact**: Small changes should have modest descriptions, not grand proclamations.
 
 ## Commits to Analyze
 
-${commits.map((c) => `- ${c.message}`).join("\n")}
+${commits.map((c) => `- ${c.message}`).join("\n")}`;
+
+  if (template) {
+    return `${basePrompt}
+
+## PR Template Found
+
+The repository has a PR template at \`${template.source}\`. You MUST follow this template structure exactly. Here is the template content:
+
+\`\`\`markdown
+${template.content}
+\`\`\`
 
 ## Generate
 
@@ -233,6 +249,36 @@ Create a PR title and body that follows these guidelines:
 - Imperative mood (e.g., "Add feature" not "Added feature")
 - Summarize the main purpose of all commits combined
 - Be specific but concise
+- **DO NOT include conventional commit prefixes** (no "feat:", "fix:", "chore:", etc.)
+- **DO NOT include scopes** (no "(auth):", "(api):", etc.)
+- Use plain English without commit formatting
+
+**Body Requirements:**
+- **CRITICAL**: Follow the exact structure and format of the PR template provided above
+- Fill in each section of the template with relevant information based on the commits
+- Maintain all headings, checkboxes, and formatting from the template
+- If a section in the template doesn't apply to these changes, write "N/A" or "Not applicable"
+- Do not add extra sections beyond what's in the template
+- Preserve the template's style and tone while adding meaningful content
+- Use straightforward language that accurately describes the changes
+
+Generate a title and body that follows the repository's template exactly and provides reviewers with clear, factual information about the changes.`;
+  }
+
+  return `${basePrompt}
+
+## Generate
+
+Create a PR title and body that follows these guidelines:
+
+**Title Requirements:**
+- Max 72 characters
+- Imperative mood (e.g., "Add feature" not "Added feature")
+- Summarize the main purpose of all commits combined
+- Be specific but concise
+- **DO NOT include conventional commit prefixes** (no "feat:", "fix:", "chore:", etc.)
+- **DO NOT include scopes** (no "(auth):", "(api):", etc.)
+- Use plain English without commit formatting
 
 **Body Requirements:**
 - Start with a brief overview of what this PR accomplishes
@@ -244,11 +290,21 @@ Create a PR title and body that follows these guidelines:
   - **Breaking Changes**: If any (clearly marked)
   - **Testing**: How changes were validated (if applicable)
 - Keep it scannable with headers, bullets, and formatting
-- Focus on impact and reviewer needs
+- Focus on clarity and accuracy
+- Use precise, straightforward language without exaggeration
 
-Generate a title and body that would make any reviewer excited to review your code.`;
+Generate a title and body that provides reviewers with clear, accurate information about the changes.`;
+};
 
 export const prSchema = z.object({
-  title: z.string().describe("PR title, max 72 characters"),
-  body: z.string().describe("PR body with markdown formatting"),
+  title: z
+    .string()
+    .describe(
+      "PR title, max 72 characters, using precise language that accurately describes the changes without superlatives. Do NOT include conventional commit prefixes (feat:, fix:, etc.) or scopes - use plain English",
+    ),
+  body: z
+    .string()
+    .describe(
+      "PR body with markdown formatting, using straightforward language that focuses on facts and technical details",
+    ),
 });
