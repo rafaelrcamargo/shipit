@@ -37,7 +37,7 @@ cli
   .option("-f,--force", "Automatically accept all commits, same as --yes")
   .option("-u,--unsafe", "Skip token count verification")
   .option("-p, --push", "Push the changes if any after processing all commits")
-  .option("--pr", "Automatically create a pull request")
+  .option("--pr", "Create a pull request (works with or without new commits)")
   .option(
     "-a,--appendix <text>",
     "Add extra context to append to the commit generation prompt",
@@ -288,7 +288,7 @@ Pick a lane:
     await handlePush({ git, log, spinner });
   }
 
-  if (commitCount > 0 && ((!options.force && !options.yes) || options.pr)) {
+  if ((commitCount > 0 && (!options.force && !options.yes)) || options.pr) {
     await handlePullRequest({
       git,
       log,
