@@ -284,7 +284,11 @@ Pick a lane:
     }
   }
 
-  if (commitCount > 0 && !options.force && !options.yes) {
+  if (options.push) {
+    await handlePush({ git, log, spinner });
+  }
+
+  if (commitCount > 0 && ((!options.force && !options.yes) || options.pr)) {
     await handlePullRequest({
       git,
       log,
@@ -295,10 +299,6 @@ Pick a lane:
       ),
       model: aiConfig.model,
     });
-  }
-
-  if (options.push) {
-    await handlePush({ git, log, spinner });
   }
 
   if (commitCount > 0) {

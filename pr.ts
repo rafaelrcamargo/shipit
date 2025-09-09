@@ -3,6 +3,7 @@ import chalk from "chalk";
 import type { SimpleGit } from "simple-git";
 import { prInstruction, prSchema } from "./constants";
 import type { Prompts } from "./prompts";
+import { findPrTemplate } from "./template";
 import { getBaseBranch, getErrorMessage, pluralize, wrapText } from "./utils";
 
 type PrHandlerParams = {
@@ -95,6 +96,8 @@ export async function handlePullRequest({
 
         await git.push("origin", branch);
         pushSpinner.stop("Pushed! Your code is now live and ready to PR");
+      } else if (unpushedCommits.total === 0) {
+        log.info("Branch is already up to date with remote! 👍");
       }
     } catch (error) {
       log.error(
@@ -108,12 +111,20 @@ export async function handlePullRequest({
     const prSpinner = spinner();
     prSpinner.start("Getting the AI to write your PR...");
 
+    // Check for PR template
+    const template = await findPrTemplate(git);
+    if (template) {
+      log.info(
+        `Found PR template at ${chalk.cyan(template.source)} - following repository guidelines! 📝`,
+      );
+    }
+
     const commits = await git.log([`origin/${baseBranch}..HEAD`]);
 
     const { object: prInfo } = await generateObject({
       model,
       schema: prSchema,
-      prompt: prInstruction(commits.all),
+      prompt: prInstruction(commits.all, template || undefined),
     });
 
     prSpinner.stop("Nice! Got your PR ready to rock...");

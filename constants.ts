@@ -1,5 +1,6 @@
 import type { DefaultLogFields, DiffResult, ListLogLine } from "simple-git";
 import { z } from "zod";
+import type { PrTemplate } from "./template";
 
 export const systemInstruction = `# Expert \`git\` companion
 
@@ -207,7 +208,9 @@ export const responseSchema = z.object({
 
 export const prInstruction = (
   commits: readonly (DefaultLogFields & ListLogLine)[],
-) => `# Expert Pull Request Generator
+  template?: PrTemplate,
+) => {
+  const basePrompt = `# Expert Pull Request Generator
 
 You are an expert software engineer specializing in creating clear, compelling pull request descriptions. Your task is to analyze a series of commits and generate a professional PR title and body that will help reviewers understand the changes quickly and thoroughly.
 
@@ -222,7 +225,41 @@ Your persona is that of a senior developer who values clarity, context, and effi
 
 ## Commits to Analyze
 
-${commits.map((c) => `- ${c.message}`).join("\n")}
+${commits.map((c) => `- ${c.message}`).join("\n")}`;
+
+  if (template) {
+    return `${basePrompt}
+
+## PR Template Found
+
+The repository has a PR template at \`${template.source}\`. You MUST follow this template structure exactly. Here is the template content:
+
+\`\`\`markdown
+${template.content}
+\`\`\`
+
+## Generate
+
+Create a PR title and body that follows these guidelines:
+
+**Title Requirements:**
+- Max 72 characters
+- Imperative mood (e.g., "Add feature" not "Added feature")
+- Summarize the main purpose of all commits combined
+- Be specific but concise
+
+**Body Requirements:**
+- **CRITICAL**: Follow the exact structure and format of the PR template provided above
+- Fill in each section of the template with relevant information based on the commits
+- Maintain all headings, checkboxes, and formatting from the template
+- If a section in the template doesn't apply to these changes, write "N/A" or "Not applicable"
+- Do not add extra sections beyond what's in the template
+- Preserve the template's style and tone while adding meaningful content
+
+Generate a title and body that follows the repository's template exactly while making sure any reviewer is fully contextualized to review your code.`;
+  }
+
+  return `${basePrompt}
 
 ## Generate
 
@@ -247,6 +284,7 @@ Create a PR title and body that follows these guidelines:
 - Focus on impact and reviewer needs
 
 Generate a title and body that would make any reviewer excited to review your code.`;
+};
 
 export const prSchema = z.object({
   title: z.string().describe("PR title, max 72 characters"),
