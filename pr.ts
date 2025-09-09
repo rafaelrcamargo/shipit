@@ -96,7 +96,7 @@ export async function handlePullRequest({
 
         await git.push("origin", branch);
         pushSpinner.stop("Pushed! Your code is now live and ready to PR");
-      } else if (unpushedCommits.total === 0) {
+      } else {
         log.info("Branch is already up to date with remote! 👍");
       }
     } catch (error) {
