@@ -66,13 +66,12 @@ const { args, options } = cli.parse() as {
 
 if (options.help || options.version) process.exit(0);
 
-// Helper to check if auto-commit is enabled (--force and --yes are identical)
-const isAutoCommit = !!(options.force || options.yes);
+const shouldAutoAccept = !!(options.force || options.yes);
 
 async function main() {
   const { log, note, outro, spinner, confirm } = createPrompts({
     silent: !!options.silent,
-    force: isAutoCommit,
+    force: shouldAutoAccept,
   });
 
   let aiConfig: ReturnType<typeof detectAndConfigureAIProvider>;
@@ -83,7 +82,7 @@ async function main() {
     process.exit(1);
   }
 
-  if (!options.silent && !isAutoCommit) {
+  if (!options.silent && !shouldAutoAccept) {
     note(
       chalk.italic("Because writing 'fix stuff' gets old real quick..."),
       chalk.bold("🧹 Git Your Sh*t Together"),
@@ -291,7 +290,7 @@ Pick a lane:
     await handlePush({ git, log, spinner });
   }
 
-  if ((commitCount > 0 && !isAutoCommit) || options.pr) {
+  if ((commitCount > 0 && !shouldAutoAccept) || options.pr) {
     await handlePullRequest({
       git,
       log,
