@@ -40,7 +40,6 @@ export async function handlePullRequest({
     }
 
     if (branch === baseBranch) {
-      log.info(`You're on ${baseBranch} already. No PR needed, champ! 👑`);
       return;
     }
 
