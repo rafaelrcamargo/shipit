@@ -1,10 +1,6 @@
 import * as clack from "@clack/prompts";
 
-export type Prompts = typeof clack & {
-  progressGroup: (
-    operations: Array<{ name: string; action: () => Promise<void> }>,
-  ) => Promise<void>;
-};
+export type Prompts = typeof clack;
 
 /**
  * Wraps the `@clack/prompts` library to conditionally suppress or auto-confirm prompts.
@@ -17,46 +13,6 @@ export type Prompts = typeof clack & {
  * @returns A clack instance, which may be a proxied version of the original.
  */
 export function createPrompts({ silent = false, force = false }): Prompts {
-  const progressGroup = async (
-    operations: Array<{ name: string; action: () => Promise<void> }>,
-  ) => {
-    if (silent) {
-      // In silent mode, just execute operations without any UI
-      for (const op of operations) {
-        await op.action();
-      }
-      return;
-    }
-
-    const spinner = clack.spinner();
-    let currentIndex = 0;
-
-    const updateSpinner = () => {
-      const current = operations[currentIndex];
-      if (current) {
-        const progress = `(${currentIndex + 1}/${operations.length})`;
-        spinner.start(`${current.name} ${progress}`);
-      }
-    };
-
-    updateSpinner();
-
-    for (const operation of operations) {
-      try {
-        await operation.action();
-        currentIndex++;
-        if (currentIndex < operations.length) {
-          updateSpinner();
-        }
-      } catch (error) {
-        spinner.stop(`Failed: ${operation.name}`);
-        throw error;
-      }
-    }
-
-    spinner.stop(`✓ Completed ${operations.length} operations`);
-  };
-
   if (silent) {
     return {
       ...clack,
@@ -80,8 +36,6 @@ export function createPrompts({ silent = false, force = false }): Prompts {
         isCancelled: false,
       }),
 
-      progressGroup,
-
       confirm: force
         ? new Proxy(clack.confirm, {
             apply: () => Promise.resolve(true),
@@ -93,12 +47,11 @@ export function createPrompts({ silent = false, force = false }): Prompts {
   if (force) {
     return {
       ...clack,
-      progressGroup,
       confirm: new Proxy(clack.confirm, {
         apply: () => Promise.resolve(true),
       }),
     };
   }
 
-  return { ...clack, progressGroup };
+  return clack;
 }

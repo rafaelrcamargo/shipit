@@ -9,8 +9,8 @@ import { getBaseBranch, getErrorMessage, pluralize, wrapText } from "./utils";
 type PrHandlerParams = {
   git: SimpleGit;
   log: Prompts["log"];
+  spinner: Prompts["spinner"];
   confirm: Prompts["confirm"];
-  progressGroup: Prompts["progressGroup"];
   options: { [key: string]: boolean };
   model: LanguageModel;
 };
@@ -18,8 +18,8 @@ type PrHandlerParams = {
 export async function handlePullRequest({
   git,
   log,
+  spinner,
   confirm,
-  progressGroup,
   options,
   model,
 }: PrHandlerParams): Promise<void> {
@@ -86,17 +86,16 @@ export async function handlePullRequest({
           return;
         }
 
-        await progressGroup([
-          {
-            name: `Pushing ${unpushedCommits.total} ${pluralize(
-              unpushedCommits.total,
-              "commit",
-            )} to origin/${branch}`,
-            action: async () => {
-              await git.push("origin", branch);
-            },
-          },
-        ]);
+        const pushSpinner = spinner();
+        pushSpinner.start(
+          `Pushing ${unpushedCommits.total} ${pluralize(
+            unpushedCommits.total,
+            "commit",
+          )} to origin/${branch}...`,
+        );
+
+        await git.push("origin", branch);
+        pushSpinner.stop("Pushed! Your code is now live and ready to PR");
       } else {
         log.info("Branch is already up to date with remote! 👍");
       }
@@ -109,55 +108,36 @@ export async function handlePullRequest({
       return;
     }
 
-    let template: Awaited<ReturnType<typeof findPrTemplate>>;
-    let commits: Awaited<ReturnType<SimpleGit["log"]>>;
-    let prInfo: { title: string; body: string } | undefined;
+    const prSpinner = spinner();
+    prSpinner.start("Getting the AI to write your PR...");
 
-    await progressGroup([
-      {
-        name: "Checking for PR template",
-        action: async () => {
-          template = await findPrTemplate(git);
-          if (template) {
-            log.info(
-              `Found PR template at ${chalk.cyan(template.source)} - following repository guidelines! 📝`,
-            );
-          }
-        },
-      },
-      {
-        name: "Getting commit history",
-        action: async () => {
-          commits = await git.log([`origin/${baseBranch}..HEAD`]);
-        },
-      },
-      {
-        name: "Getting AI to write your PR",
-        action: async () => {
-          const result = await generateObject({
-            model,
-            schema: prSchema,
-            prompt: prInstruction(
-              commits.all as never[],
-              template || undefined,
-            ),
-          });
-          prInfo = result.object;
-        },
-      },
-    ]);
-
-    if (!prInfo) {
-      log.error("Failed to generate PR information");
-      return;
+    // Check for PR template
+    const template = await findPrTemplate(git);
+    if (template) {
+      log.info(
+        `Found PR template at ${chalk.cyan(template.source)} - following repository guidelines! 📝`,
+      );
     }
 
+    const commits = await git.log([`origin/${baseBranch}..HEAD`]);
+
+    const { object: prInfo } = await generateObject({
+      model,
+      schema: prSchema,
+      prompt: prInstruction(commits.all, template || undefined),
+    });
+
+    prSpinner.stop("Nice! Got your PR ready to rock...");
+
+    log.message("", { symbol: chalk.gray("│") });
     log.message(chalk.bold("PR Title:"), { symbol: chalk.gray("│") });
     log.message(prInfo.title, { symbol: chalk.gray("│") });
+    log.message("", { symbol: chalk.gray("│") });
     log.message(chalk.bold("PR Body:"), { symbol: chalk.gray("│") });
-    log.message(chalk.dim(wrapText(prInfo.body, 60)), {
+    log.message(chalk.dim(wrapText(prInfo.body)), {
       symbol: chalk.gray("│"),
     });
+    log.message("", { symbol: chalk.gray("│") });
 
     const confirmPR = await confirm({
       message: "Ship it to GitHub?",
