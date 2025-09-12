@@ -20,8 +20,10 @@ import {
   categorizeChangesCount,
   categorizeTokenCount,
   decapitalizeFirstLetter,
+  formatFileList,
   getErrorMessage,
   pluralize,
+  summarizeChanges,
   wrapText,
 } from "./utils.ts";
 
@@ -69,7 +71,7 @@ if (options.help || options.version) process.exit(0);
 const shouldAutoAccept = !!(options.force || options.yes);
 
 async function main() {
-  const { log, note, outro, spinner, confirm } = createPrompts({
+  const { log, note, outro, spinner, confirm, progressGroup } = createPrompts({
     silent: !!options.silent,
     force: shouldAutoAccept,
   });
@@ -223,29 +225,25 @@ Pick a lane:
     }${description}`;
     const commitMessage = `${prefix ? `${prefix}: ` : ""}${description}`;
 
-    log.message(chalk.gray("━━━"), { symbol: chalk.gray("│") });
+    // Streamlined commit display
     log.message(displayMessage, { symbol: chalk.gray("│") });
 
     if (commit.body?.length) {
-      log.message(chalk.dim(wrapText(commit.body)), {
+      log.message(chalk.dim(wrapText(commit.body, 60)), {
         symbol: chalk.gray("│"),
       });
     }
 
     if (commit.footers?.length) {
       log.message(
-        `${commit.footers.map((footer) => wrapText(footer)).join("\n")}`,
+        `${commit.footers.map((footer) => wrapText(footer, 60)).join("\n")}`,
         { symbol: chalk.gray("│") },
       );
     }
 
-    log.message(chalk.gray("━━━"), { symbol: chalk.gray("│") });
-    log.message(
-      `Applies to these ${chalk.bold(
-        `${commit.files.length} ${pluralize(commit.files.length, "file")}`,
-      )}: ${chalk.dim(wrapText(commit.files.join(", ")))}`,
-      { symbol: chalk.gray("│") },
-    );
+    log.message(chalk.dim(formatFileList(commit.files, 3)), {
+      symbol: chalk.gray("│"),
+    });
 
     const shouldCommit = await confirm({
       message: `Ship it?`,
@@ -267,12 +265,14 @@ Pick a lane:
         const COMMIT_HASH_LENGTH = 7;
         const commitResult = await git.commit(message, commit.files);
         log.success(
-          `Committed to ${commitResult.branch}: ${chalk.bold(
+          `Committed ${chalk.bold(
             commitResult.commit.slice(0, COMMIT_HASH_LENGTH),
           )} ${chalk.dim(
-            `(${commitResult.summary.changes} changes, ${chalk.green(
-              "+" + commitResult.summary.insertions,
-            )}, ${chalk.red("-" + commitResult.summary.deletions)})`,
+            summarizeChanges({
+              files: commitResult.summary.changes,
+              insertions: commitResult.summary.insertions,
+              deletions: commitResult.summary.deletions,
+            }),
           )}`,
         );
       } catch (error) {
@@ -287,15 +287,15 @@ Pick a lane:
   }
 
   if (options.push) {
-    await handlePush({ git, log, spinner });
+    await handlePush({ git, log, progressGroup });
   }
 
   if ((commitCount > 0 && !shouldAutoAccept) || options.pr) {
     await handlePullRequest({
       git,
       log,
-      spinner,
       confirm,
+      progressGroup,
       options: Object.fromEntries(
         Object.entries(options).map(([key, value]) => [key, !!value]),
       ),
