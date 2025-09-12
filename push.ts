@@ -49,10 +49,10 @@ export async function handlePush({
 
       await git.push("origin", branch);
       pushSpinner.stop(
-        `Pushed ${unpushedCommits.total} ${pluralize(
+        `Successfully pushed ${unpushedCommits.total} ${pluralize(
           unpushedCommits.total,
           "commit",
-        )}`,
+        )} to origin/${branch}!`,
       );
     }
   } catch (error) {
