@@ -28,10 +28,7 @@ export async function handlePush({
     // Check if remote tracking branch exists
     let unpushedCommits;
     try {
-      unpushedCommits = await git.log([
-        `origin/${branch}..HEAD`,
-        "--oneline",
-      ]);
+      unpushedCommits = await git.log([`origin/${branch}..HEAD`, "--oneline"]);
     } catch {
       // Remote tracking branch doesn't exist, this is likely the first push
       pushSpinner.message(`First push to origin/${branch}...`);

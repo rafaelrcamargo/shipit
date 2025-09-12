@@ -1,6 +1,8 @@
 import * as clack from "@clack/prompts";
 
-export type Prompts = typeof clack;
+export type Prompts = typeof clack & {
+  progressGroup: (operations: Array<{ name: string; action: () => Promise<void> }>) => Promise<void>;
+};
 
 /**
  * Wraps the `@clack/prompts` library to conditionally suppress or auto-confirm prompts.
