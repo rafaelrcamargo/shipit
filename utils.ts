@@ -113,3 +113,79 @@ export const getBaseBranch = async (git: SimpleGit): Promise<string> => {
 
   throw new Error("No base branch found");
 };
+
+/**
+ * Formats file lists in a compact, readable way
+ * @param files Array of file names
+ * @param maxDisplay Maximum number of files to show before truncating
+ * @returns Formatted string with file count and optionally truncated list
+ */
+export const formatFileList = (
+  files: string[],
+  maxDisplay: number = 5,
+): string => {
+  if (files.length === 0) return "no files";
+  if (files.length === 1) return files[0] || "";
+
+  const count = `${files.length} ${pluralize(files.length, "file")}`;
+
+  if (files.length <= maxDisplay) {
+    return `${count}: ${files.join(", ")}`;
+  }
+
+  const displayed = files.slice(0, maxDisplay);
+  const remaining = files.length - maxDisplay;
+  return `${count}: ${displayed.join(", ")} (+${remaining} more)`;
+};
+
+/**
+ * Determines if an operation is routine and should use reduced verbosity
+ * @param operation The operation being performed
+ * @param context Additional context about the operation
+ * @returns Whether to use reduced verbosity
+ */
+export const isRoutineOperation = (
+  operation: string,
+  _context?: unknown,
+): boolean => {
+  const routineOps = [
+    "push_existing_branch",
+    "single_file_commit",
+    "minor_changes",
+    "up_to_date_check",
+  ];
+
+  return routineOps.includes(operation);
+};
+
+/**
+ * Creates a summary of changes instead of detailed listings
+ * @param changes Object containing various change counts
+ * @returns Compact summary string
+ */
+export const summarizeChanges = (changes: {
+  files?: number;
+  insertions?: number;
+  deletions?: number;
+  commits?: number;
+}): string => {
+  const parts: string[] = [];
+
+  if (changes.files) {
+    parts.push(`${changes.files} ${pluralize(changes.files, "file")}`);
+  }
+  if (changes.commits) {
+    parts.push(`${changes.commits} ${pluralize(changes.commits, "commit")}`);
+  }
+  if (changes.insertions || changes.deletions) {
+    const changeStr = [
+      changes.insertions ? chalk.green(`+${changes.insertions}`) : null,
+      changes.deletions ? chalk.red(`-${changes.deletions}`) : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    if (changeStr) parts.push(`(${changeStr})`);
+  }
+
+  return parts.join(", ");
+};
