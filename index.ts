@@ -1,7 +1,8 @@
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import type { GroqProviderOptions } from "@ai-sdk/groq";
 import type { OpenAIProviderOptions } from "@ai-sdk/openai/internal";
-import { streamObject } from "ai";
+import { Output, streamText } from "ai";
 import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
@@ -172,7 +173,7 @@ Pick a lane:
     }
   }
 
-  const { elementStream } = streamObject({
+  const { elementStream } = streamText({
     model: aiConfig.model,
     providerOptions: {
       google: {
@@ -181,6 +182,10 @@ Pick a lane:
         responseModalities: ["TEXT"],
         threshold: "OFF",
       } satisfies GoogleGenerativeAIProviderOptions,
+      groq: {
+        structuredOutputs: true,
+        strictJsonSchema: true,
+      } satisfies GroqProviderOptions,
       openai: {
         reasoningEffort: "low",
         structuredOutputs: true,
@@ -191,10 +196,11 @@ Pick a lane:
         sendReasoning: false,
       } satisfies AnthropicProviderOptions,
     },
-    output: "array",
-    schemaName: "commit",
-    schemaDescription: "Guidelines for generating commit messages",
-    schema: responseSchema,
+    output: Output.array({
+      element: responseSchema,
+      name: "commit",
+      description: "Guidelines for generating commit messages",
+    }),
     system: systemInstruction,
     prompt: userInstruction(status, diffSummary, diff, options.appendix),
   });
