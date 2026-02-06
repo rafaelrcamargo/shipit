@@ -17,10 +17,10 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.15",
-    "@ai-sdk/google": "^2.0.13",
+    "@ai-sdk/anthropic": "^3",
+    "@ai-sdk/google": "^3",
     "@ai-sdk/groq": "^3.0.21",
-    "@ai-sdk/openai": "^2.0.28",
+    "@ai-sdk/openai": "^3",
     "@clack/prompts": "1.0.0-alpha.1",
     "@types/bun": "latest",
     "@types/node": "^24.3.1",
