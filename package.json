@@ -6,56 +6,47 @@
   "scripts": {
     "build": "DO_NOT_TRACK=1 bun build --compile --minify --sourcemap --bytecode ./index.ts --outfile ./build/shipit",
     "copy": "cp ./build/shipit /usr/local/bin/shipit",
-    "format": "prettier --ignore-unknown --write . --ignore-path .gitignore",
-    "format:check": "prettier --ignore-unknown --check . --ignore-path .gitignore",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "lint": "eslint .",
     "postinstall": "simple-git-hooks",
     "preinstall": "bunx only-allow bun",
-    "typecheck": "tsc --noEmit && rm tsconfig.tsbuildinfo"
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.66",
+    "@ai-sdk/google": "^2.0.54",
+    "@ai-sdk/openai": "^2.0.93",
+    "@clack/prompts": "1.0.0-alpha.1",
+    "@types/bun": "latest",
+    "@types/node": "^24.10.13",
+    "@types/stream-json": "^1.7.8",
+    "ai": "^5.0.137",
+    "cac": "^6.7.14",
+    "chalk": "^5.6.2",
+    "gpt-tokenizer": "^3.4.0",
+    "simple-git": "^3.32.2",
+    "typescript": "^5.9.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.3",
+    "@total-typescript/ts-reset": "^0.6.1",
+    "eslint": "^9.39.3",
+    "eslint-plugin-perfectionist": "^4.15.1",
+    "globals": "^16.5.0",
+    "lint-staged": "^16.2.7",
+    "oxfmt": "^0.35.0",
+    "simple-git-hooks": "^2.13.1",
+    "typescript-eslint": "^8.56.1"
   },
   "peerDependencies": {
     "typescript": "^5.8.3"
   },
-  "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.15",
-    "@ai-sdk/google": "^2.0.13",
-    "@ai-sdk/openai": "^2.0.28",
-    "@clack/prompts": "1.0.0-alpha.1",
-    "@types/bun": "latest",
-    "@types/node": "^24.3.1",
-    "@types/stream-json": "^1.7.8",
-    "ai": "^5.0.41",
-    "cac": "^6.7.14",
-    "chalk": "^5.6.2",
-    "gpt-tokenizer": "^3.0.1",
-    "simple-git": "^3.28.0",
-    "typescript": "^5.9.2",
-    "zod": "^3.25.76"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.35.0",
-    "@total-typescript/ts-reset": "^0.6.1",
-    "eslint": "^9.35.0",
-    "eslint-plugin-perfectionist": "^4.15.0",
-    "globals": "^16.4.0",
-    "lint-staged": "^16.1.6",
-    "prettier": "^3.6.2",
-    "prettier-plugin-organize-imports": "^4.2.0",
-    "prettier-plugin-pkg": "^0.21.2",
-    "simple-git-hooks": "^2.13.1",
-    "typescript-eslint": "^8.43.0"
-  },
-  "lint-staged": {
-    "*": "prettier --ignore-unknown --write --allow-empty"
-  },
-  "prettier": {
-    "organizeImportsSkipDestructiveCodeActions": true,
-    "plugins": [
-      "prettier-plugin-organize-imports",
-      "prettier-plugin-pkg"
-    ]
-  },
   "simple-git-hooks": {
     "pre-commit": "bun lint-staged"
+  },
+  "lint-staged": {
+    "*": "oxfmt --no-error-on-unmatched-pattern"
   }
 }
