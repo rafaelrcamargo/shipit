@@ -13,29 +13,29 @@ export const detectAndConfigureAIProvider = () => {
   if (process.env["GOOGLE_GENERATIVE_AI_API_KEY"])
     return {
       provider: "Google",
-      model: google("gemini-2.5-flash"),
-      name: "Gemini 2.5 Flash",
+      model: google("gemini-3-flash-preview"),
+      name: "Gemini 3 Flash Preview",
     };
 
   if (process.env["OPENAI_API_KEY"])
     return {
       provider: "OpenAI",
-      model: openai("gpt-5-nano"),
-      name: "GPT-5 Nano",
+      model: openai("gpt-5.1-codex-mini"),
+      name: "GPT-5.1 Codex Mini",
     };
 
   if (process.env["ANTHROPIC_API_KEY"])
     return {
       provider: "Anthropic",
-      model: anthropic("claude-sonnet-4-20250514"),
-      name: "Claude Sonnet 4",
+      model: anthropic("claude-haiku-4-5"),
+      name: "Claude Haiku 4.5",
     };
 
   if (process.env["GROQ_API_KEY"]) {
     return {
       provider: "Groq",
       model: groq("moonshotai/kimi-k2-instruct-0905"),
-      name: "Kimi K2",
+      name: "Kimi K2 0905",
     };
   }
 

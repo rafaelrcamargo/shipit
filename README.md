@@ -11,9 +11,10 @@ Tired of staring at your messy diff wondering what the hell to call this commit?
 > [!IMPORTANT]
 > This tool requires one of the following AI provider API keys to be set as an environment variable:
 >
-> - **Claude (Anthropic)**: `ANTHROPIC_API_KEY` - Get yours at <https://console.anthropic.com/>
-> - **GPT (OpenAI)**: `OPENAI_API_KEY` - Get yours at <https://platform.openai.com/api-keys>
-> - **Gemini (Google)**: `GOOGLE_GENERATIVE_AI_API_KEY` - Get yours at <https://aistudio.google.com/app/apikey>
+> - **Gemini 3 Flash Preview (Google)**: `GOOGLE_GENERATIVE_AI_API_KEY` - Get yours at <https://aistudio.google.com/app/apikey>
+> - **GPT-5.1 Codex Mini (OpenAI)**: `OPENAI_API_KEY` - Get yours at <https://platform.openai.com/api-keys>
+> - **Claude Haiku 4.5 (Anthropic)**: `ANTHROPIC_API_KEY` - Get yours at <https://console.anthropic.com/>
+> - **Kimi K2 0905 (Groq)**: `GROQ_API_KEY` - Get yours at <https://console.groq.com/keys>
 >
 > The tool will automatically detect and use the first available API key in the order above. The free tiers should be sufficient for running this tool.
 
@@ -25,9 +26,10 @@ bun run build && sudo bun run copy
 
 # Set one of these API keys (the tool will automatically detect which one to use):
 
-export ANTHROPIC_API_KEY="..."
-export OPENAI_API_KEY="..."
 export GOOGLE_GENERATIVE_AI_API_KEY="..."
+export OPENAI_API_KEY="..."
+export ANTHROPIC_API_KEY="..."
+export GROQ_API_KEY="..."
 ```
 
 > [!TIP]
