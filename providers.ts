@@ -1,5 +1,6 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
+import { groq } from "@ai-sdk/groq";
 import { openai } from "@ai-sdk/openai";
 
 /**
@@ -30,10 +31,19 @@ export const detectAndConfigureAIProvider = () => {
       name: "Claude Sonnet 4",
     };
 
+  if (process.env["GROQ_API_KEY"]) {
+    return {
+      provider: "Groq",
+      model: groq("moonshotai/kimi-k2-instruct-0905"),
+      name: "Kimi K2",
+    };
+  }
+
   throw new Error(
     "No AI provider API key found. Please set one of the following:\n" +
       "- ANTHROPIC_API_KEY for Anthropic models\n" +
       "- OPENAI_API_KEY for OpenAI models\n" +
+      "- GROQ_API_KEY for Groq models\n" +
       "- GOOGLE_GENERATIVE_AI_API_KEY for Google Generative AI models",
   );
 };

@@ -1,5 +1,6 @@
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import type { GroqProviderOptions } from "@ai-sdk/groq";
 import type { OpenAIChatLanguageModelOptions } from "@ai-sdk/openai";
 import { streamObject } from "ai";
 import { CAC } from "cac";
@@ -182,6 +183,10 @@ Pick a lane:
         responseModalities: ["TEXT"],
         threshold: "OFF",
       } satisfies GoogleGenerativeAIProviderOptions,
+      groq: {
+        structuredOutputs: true,
+        strictJsonSchema: true,
+      } satisfies GroqProviderOptions,
       openai: {
         reasoningEffort: "low",
         strictJsonSchema: true,
