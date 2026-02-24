@@ -1,5 +1,6 @@
 import type { DefaultLogFields, DiffResult, ListLogLine } from "simple-git";
 import { z } from "zod";
+
 import type { PrTemplate } from "./template";
 
 export const systemInstruction = `# Expert \`git\` companion

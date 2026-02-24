@@ -1,4 +1,5 @@
 import type { SimpleGit } from "simple-git";
+
 import { getErrorMessage } from "./utils";
 
 export interface PrTemplate {

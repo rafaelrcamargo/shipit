@@ -1,11 +1,12 @@
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
-import type { OpenAIProviderOptions } from "@ai-sdk/openai/internal";
+import type { OpenAIChatLanguageModelOptions } from "@ai-sdk/openai";
 import { streamObject } from "ai";
 import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
+
 import {
   responseSchema,
   systemInstruction,
@@ -185,7 +186,7 @@ Pick a lane:
         reasoningEffort: "low",
         structuredOutputs: true,
         strictJsonSchema: true,
-      } satisfies OpenAIProviderOptions,
+      } satisfies OpenAIChatLanguageModelOptions,
       anthropic: {
         thinking: { type: "disabled" },
         sendReasoning: false,
