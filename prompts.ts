@@ -32,7 +32,10 @@ export function createPrompts({ silent = false, force = false }): Prompts {
       spinner: () => ({
         start: () => {},
         stop: () => {},
+        cancel: () => {},
+        error: () => {},
         message: () => {},
+        clear: () => {},
         isCancelled: false,
       }),
 
