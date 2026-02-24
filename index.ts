@@ -184,7 +184,6 @@ Pick a lane:
       } satisfies GoogleGenerativeAIProviderOptions,
       openai: {
         reasoningEffort: "low",
-        structuredOutputs: true,
         strictJsonSchema: true,
       } satisfies OpenAIChatLanguageModelOptions,
       anthropic: {
