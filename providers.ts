@@ -17,14 +17,6 @@ export const detectAndConfigureAIProvider = () => {
       name: "Gemini 2.5 Flash",
     };
 
-  if (process.env["GROQ_API_KEY"]) {
-    return {
-      provider: "Groq",
-      model: groq("moonshotai/kimi-k2-instruct-0905"),
-      name: "Kimi K2",
-    };
-  }
-
   if (process.env["OPENAI_API_KEY"])
     return {
       provider: "OpenAI",
@@ -38,6 +30,14 @@ export const detectAndConfigureAIProvider = () => {
       model: anthropic("claude-sonnet-4-20250514"),
       name: "Claude Sonnet 4",
     };
+
+  if (process.env["GROQ_API_KEY"]) {
+    return {
+      provider: "Groq",
+      model: groq("moonshotai/kimi-k2-instruct-0905"),
+      name: "Kimi K2",
+    };
+  }
 
   throw new Error(
     "No AI provider API key found. Please set one of the following:\n" +

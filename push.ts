@@ -1,4 +1,5 @@
 import type { SimpleGit } from "simple-git";
+
 import type { Prompts } from "./prompts";
 import { getErrorMessage, pluralize } from "./utils";
 

@@ -14,11 +14,11 @@ jobs:
       matrix:
         include:
           - name: Format
-            command: format:check
+            command: bunx oxfmt --check
           - name: Lint
-            command: lint
+            command: bun run lint
           - name: TypeCheck
-            command: typecheck
+            command: bun run typecheck
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,4 +40,4 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Run ${{ matrix.name }}
-        run: bun run ${{ matrix.command }}
+        run: ${{ matrix.command }}

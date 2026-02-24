@@ -1,6 +1,7 @@
 import { generateObject, type LanguageModel } from "ai";
 import chalk from "chalk";
 import type { SimpleGit } from "simple-git";
+
 import { prInstruction, prSchema } from "./constants";
 import type { Prompts } from "./prompts";
 import { findPrTemplate } from "./template";
