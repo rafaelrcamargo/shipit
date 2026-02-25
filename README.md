@@ -16,7 +16,7 @@ Tired of staring at your messy diff wondering what the hell to call this commit?
 > - **Claude Haiku 4.5 (Anthropic)**: `ANTHROPIC_API_KEY` - Get yours at <https://console.anthropic.com/>
 > - **Kimi K2 0905 (Groq)**: `GROQ_API_KEY` - Get yours at <https://console.groq.com/keys>
 >
-> The tool will automatically detect and use the first available API key in the order above. The free tiers should be sufficient for running this tool.
+> By default, the tool auto-detects the first available API key in the order above. You can override this using `SHIPIT_PROVIDER` and `SHIPIT_MODEL`.
 
 ## Setup
 
@@ -30,6 +30,85 @@ export GOOGLE_GENERATIVE_AI_API_KEY="..."
 export OPENAI_API_KEY="..."
 export ANTHROPIC_API_KEY="..."
 export GROQ_API_KEY="..."
+
+# Optional: force provider/model selection instead of key-order fallback
+export SHIPIT_PROVIDER="openai" # google | openai | anthropic | groq
+export SHIPIT_MODEL="gpt-5.1-codex-mini"
+```
+
+### Provider and Model Overrides
+
+`shipit` supports explicit provider/model selection:
+
+- `SHIPIT_PROVIDER=google|openai|anthropic|groq`
+- `SHIPIT_MODEL=<provider-compatible-model-id>`
+
+Resolution order:
+
+1. If `SHIPIT_PROVIDER` is set, `shipit` uses it directly.
+2. If `SHIPIT_MODEL` is set, `SHIPIT_PROVIDER` is required.
+3. If no override is set, `shipit` falls back to API key detection order:
+   - `GOOGLE_GENERATIVE_AI_API_KEY`
+   - `OPENAI_API_KEY`
+   - `ANTHROPIC_API_KEY`
+   - `GROQ_API_KEY`
+
+Validation behavior:
+
+- Invalid `SHIPIT_PROVIDER` values fail fast with supported options.
+- `SHIPIT_MODEL` without `SHIPIT_PROVIDER` fails fast to avoid ambiguity.
+- Missing API key for a forced provider fails fast with the exact required env var.
+- Invalid/incompatible models are surfaced with actionable errors during generation.
+
+### Global Setup Examples
+
+Set these once in your shell profile so they apply to every terminal.
+
+#### zsh (`~/.zshrc`)
+
+```bash
+export OPENAI_API_KEY="..."
+export SHIPIT_PROVIDER="openai"
+export SHIPIT_MODEL="gpt-5.1-codex-mini"
+```
+
+#### bash (`~/.bashrc`)
+
+```bash
+export OPENAI_API_KEY="..."
+export SHIPIT_PROVIDER="openai"
+export SHIPIT_MODEL="gpt-5.1-codex-mini"
+```
+
+#### fish (`config.fish`)
+
+```fish
+set -Ux OPENAI_API_KEY "..."
+set -Ux SHIPIT_PROVIDER "openai"
+set -Ux SHIPIT_MODEL "gpt-5.1-codex-mini"
+```
+
+#### PowerShell (`$PROFILE`)
+
+```powershell
+$env:OPENAI_API_KEY="..."
+$env:SHIPIT_PROVIDER="openai"
+$env:SHIPIT_MODEL="gpt-5.1-codex-mini"
+```
+
+Reload your shell after editing profile files:
+
+```bash
+source ~/.zshrc   # or ~/.bashrc
+```
+
+Quick verification:
+
+```bash
+echo "$SHIPIT_PROVIDER"
+echo "$SHIPIT_MODEL"
+shipit --help
+shipit
 ```
 
 > [!TIP]
@@ -59,7 +138,6 @@ shipit --help             # Show help and all options
 
 | Flag | Long Form           | Description                                               |
 | ---- | ------------------- | --------------------------------------------------------- |
-| `-s` | `--silent`          | Only log fatal errors to the console                      |
 | `-y` | `--yes`             | Automatically accept all commits (same as `--force`)      |
 | `-f` | `--force`           | Automatically accept all commits (same as `--yes`)        |
 | `-u` | `--unsafe`          | Skip token count verification                             |
@@ -75,9 +153,6 @@ shipit -fu                # Force commits + skip token verification
 
 # The no-time-to-waste combo
 shipit -y --pr            # Auto-accept commits + create PR
-
-# Silent workflow with push
-shipit -spy               # Silent + push + auto-accept
 
 # Add context to help AI understand your changes
 shipit -a "refactoring for performance"
