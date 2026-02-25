@@ -14,9 +14,9 @@ import { collectUntrackedFileContexts } from "./model-input";
 import { version } from "./package.json" with { type: "json" };
 import { handlePullRequest } from "./pr.ts";
 import { createPrompts } from "./prompts.ts";
-import { defaultGenerationProviderOptions } from "./providers/registry";
-import { resolveProviderConfig } from "./providers/resolution";
 import { handlePush } from "./push.ts";
+import { defaultGenerationProviderOptions } from "./registry";
+import { resolveProviderConfig } from "./resolution";
 import {
   categorizeChangesCount,
   categorizeTokenCount,

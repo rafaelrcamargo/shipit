@@ -10,7 +10,7 @@ import type { SimpleGit } from "simple-git";
 import { prInstruction, prSchema } from "./constants";
 import { formatAiError } from "./errors";
 import type { Prompts } from "./prompts";
-import { defaultGenerationProviderOptions } from "./providers/registry";
+import { defaultGenerationProviderOptions } from "./registry";
 import { findPrTemplate } from "./template";
 import { getBaseBranch, getErrorMessage, pluralize, wrapText } from "./utils";
 

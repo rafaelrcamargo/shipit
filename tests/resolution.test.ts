@@ -7,8 +7,8 @@ import {
   test,
 } from "bun:test";
 
-import { providerRegistryById } from "../providers/registry";
-import { resolveProviderConfig } from "../providers/resolution";
+import { providerRegistryById } from "../registry";
+import { resolveProviderConfig } from "../resolution";
 
 const MANAGED_ENV_KEYS = [
   "SHIPIT_PROVIDER",
