@@ -19,6 +19,8 @@ jobs:
             command: bun run lint
           - name: TypeCheck
             command: bun run typecheck
+          - name: Test
+            command: bun test
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
