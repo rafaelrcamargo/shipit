@@ -1,6 +1,7 @@
 import type { DefaultLogFields, DiffResult, ListLogLine } from "simple-git";
 import { z } from "zod";
 
+import type { UntrackedFileContext } from "./model-input";
 import type { PrTemplate } from "./template";
 
 export const systemInstruction = `# Expert \`git\` companion
@@ -134,6 +135,7 @@ export const userInstruction = <Status>(
   diffSummary: DiffResult,
   diff: string,
   appendix?: string,
+  untrackedFiles: UntrackedFileContext[] = [],
 ) => `## Instructions
 
 You are an expert software developer tasked with writing a commit message for the following changes. Adhere to the **Conventional Commits** specification. The commit message should have a concise subject line and a more detailed body explaining the "what" and "why" of the changes.
@@ -157,6 +159,29 @@ ${JSON.stringify(diffSummary)}
 \`\`\`diff
 ${diff}
 \`\`\`${
+  untrackedFiles.length > 0
+    ? `
+
+### Untracked File Contents
+
+These files are new and may not appear in \`git diff HEAD\`. Treat them as part of the commit analysis:
+
+${untrackedFiles
+  .map((file) => {
+    const notes: string[] = [];
+    if (file.isBinary) notes.push("binary omitted");
+    if (file.isTruncated) notes.push("content truncated");
+
+    const noteSuffix = notes.length > 0 ? ` (${notes.join(", ")})` : "";
+
+    return `#### ${file.path}${noteSuffix}
+\`\`\`
+${file.content}
+\`\`\``;
+  })
+  .join("\n\n")}`
+    : ""
+}${
   appendix?.trim()
     ? `
 
@@ -172,8 +197,9 @@ ${appendix.trim()}`
 
 export const responseSchema = z.object({
   files: z
-    .array(z.string())
-    .describe("Array of file paths affected by this commit group"),
+    .array(z.string().min(1))
+    .min(1)
+    .describe("Non-empty array of file paths affected by this commit group"),
   type: z
     .enum([
       "fix",
@@ -186,11 +212,14 @@ export const responseSchema = z.object({
       "refactor",
       "perf",
       "test",
-      "other",
     ])
     .describe("Conventional commit type"),
   scope: z.string().nullable().describe("Optional scope for the changes"),
-  description: z.string().describe("Brief description of changes"),
+  description: z
+    .string()
+    .min(1)
+    .max(72)
+    .describe("Brief one-line description of changes"),
   body: z
     .string()
     .nullable()
@@ -205,6 +234,10 @@ export const responseSchema = z.object({
       "Array of footer strings (e.g., 'BREAKING CHANGE: ...', 'Closes #123')",
     ),
 });
+
+export const responseListSchema = z
+  .array(responseSchema)
+  .describe("Array of atomic commit groups that together cover all changes");
 
 export const prInstruction = (
   commits: readonly (DefaultLogFields & ListLogLine)[],
