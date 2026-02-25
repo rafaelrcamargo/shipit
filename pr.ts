@@ -1,9 +1,16 @@
+import { randomUUID } from "node:crypto";
+import { unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { generateObject, type LanguageModel } from "ai";
 import chalk from "chalk";
 import type { SimpleGit } from "simple-git";
 
 import { prInstruction, prSchema } from "./constants";
+import { formatAiError } from "./errors";
 import type { Prompts } from "./prompts";
+import { defaultGenerationProviderOptions } from "./providers/registry";
 import { findPrTemplate } from "./template";
 import { getBaseBranch, getErrorMessage, pluralize, wrapText } from "./utils";
 
@@ -63,7 +70,7 @@ export async function handlePullRequest({
         initialValue: true,
       }));
 
-    if (!shouldCreatePR) {
+    if (shouldCreatePR !== true) {
       return;
     }
 
@@ -82,7 +89,7 @@ export async function handlePullRequest({
           initialValue: true,
         });
 
-        if (!shouldPush) {
+        if (shouldPush !== true) {
           return;
         }
 
@@ -121,11 +128,20 @@ export async function handlePullRequest({
 
     const commits = await git.log([`origin/${baseBranch}..HEAD`]);
 
-    const { object: prInfo } = await generateObject({
-      model,
-      schema: prSchema,
-      prompt: prInstruction(commits.all, template || undefined),
-    });
+    let prInfo;
+    try {
+      const result = await generateObject({
+        model,
+        providerOptions: defaultGenerationProviderOptions,
+        schema: prSchema,
+        prompt: prInstruction(commits.all, template || undefined),
+      });
+      prInfo = result.object;
+    } catch (error) {
+      prSpinner.stop("Couldn't generate PR content.");
+      log.error(formatAiError(error));
+      return;
+    }
 
     prSpinner.stop("Nice! Got your PR ready to rock...");
 
@@ -144,11 +160,14 @@ export async function handlePullRequest({
       initialValue: true,
     });
 
-    if (!confirmPR) {
+    if (confirmPR !== true) {
       return;
     }
 
-    const tempFile = `/tmp/pr-body-${Date.now()}.md`;
+    const tempFile = join(
+      tmpdir(),
+      `shipit-pr-body-${Date.now()}-${randomUUID()}.md`,
+    );
 
     try {
       await Bun.write(tempFile, prInfo.body);
@@ -201,14 +220,12 @@ export async function handlePullRequest({
       );
     } finally {
       try {
-        await Bun.$`rm -f ${tempFile}`;
+        await unlink(tempFile);
       } catch {
         // Ignore cleanup errors
       }
     }
   } catch (error) {
-    log.error(
-      `Well sh*t, PR creation went sideways: ${getErrorMessage(error)}`,
-    );
+    log.error(`Well sh*t, PR creation went sideways: ${formatAiError(error)}`);
   }
 }
