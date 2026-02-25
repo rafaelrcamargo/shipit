@@ -25,7 +25,6 @@ Tired of staring at your messy diff wondering what the hell to call this commit?
 bun run build && sudo bun run copy
 
 # Set one of these API keys (the tool will automatically detect which one to use):
-
 export GOOGLE_GENERATIVE_AI_API_KEY="..."
 export OPENAI_API_KEY="..."
 export ANTHROPIC_API_KEY="..."
