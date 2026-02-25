@@ -270,6 +270,18 @@ Pick a lane:
           process.exit(1);
         }
 
+        const stagedDiffForCommit = await git.diff([
+          "--cached",
+          "--",
+          ...commit.files,
+        ]);
+        if (!stagedDiffForCommit.trim()) {
+          log.info(
+            "No remaining staged changes for this commit group. Skipping it.",
+          );
+          continue;
+        }
+
         try {
           const COMMIT_HASH_LENGTH = 7;
           const commitResult = await git.commit(message, commit.files);
