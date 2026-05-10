@@ -235,10 +235,6 @@ export const responseSchema = z.object({
     ),
 });
 
-export const responseListSchema = z
-  .array(responseSchema)
-  .describe("Array of atomic commit groups that together cover all changes");
-
 export const prInstruction = (
   commits: readonly (DefaultLogFields & ListLogLine)[],
   template?: PrTemplate,

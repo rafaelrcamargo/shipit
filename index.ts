@@ -5,7 +5,7 @@ import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
 
 import {
-  responseListSchema,
+  responseSchema,
   systemInstruction,
   userInstruction,
 } from "./constants.ts";
@@ -199,9 +199,10 @@ Pick a lane:
     const { object } = await generateObject({
       model: aiConfig.model,
       providerOptions: defaultGenerationProviderOptions,
-      schema: responseListSchema,
-      schemaName: "commits",
-      schemaDescription: "A list of focused commit groups",
+      output: "array",
+      schema: responseSchema,
+      schemaName: "commit",
+      schemaDescription: "A focused commit group",
       system: systemInstruction,
       prompt,
     });
