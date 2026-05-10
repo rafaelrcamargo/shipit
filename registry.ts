@@ -18,6 +18,17 @@ type ProviderDefinition = {
 };
 
 export const providerRegistryById = {
+  openai: {
+    providerLabel: "OpenAI",
+    defaultModelId: "gpt-5.1-codex-mini",
+    defaultModelName: "GPT-5.1 Codex Mini",
+    requiredApiKeyEnv: "OPENAI_API_KEY",
+    createModel: (modelId: string) => openai(modelId),
+    options: {
+      reasoningEffort: "low",
+      strictJsonSchema: true,
+    } satisfies OpenAIChatLanguageModelOptions,
+  },
   google: {
     providerLabel: "Google",
     defaultModelId: "gemini-3-flash-preview",
@@ -30,17 +41,6 @@ export const providerRegistryById = {
       responseModalities: ["TEXT"],
       threshold: "OFF",
     } satisfies GoogleGenerativeAIProviderOptions,
-  },
-  openai: {
-    providerLabel: "OpenAI",
-    defaultModelId: "gpt-5.1-codex-mini",
-    defaultModelName: "GPT-5.1 Codex Mini",
-    requiredApiKeyEnv: "OPENAI_API_KEY",
-    createModel: (modelId: string) => openai(modelId),
-    options: {
-      reasoningEffort: "low",
-      strictJsonSchema: true,
-    } satisfies OpenAIChatLanguageModelOptions,
   },
   anthropic: {
     providerLabel: "Anthropic",
