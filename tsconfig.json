@@ -19,6 +19,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
+    "types": ["bun"],
     "target": "ESNext",
     "verbatimModuleSyntax": true
   }
