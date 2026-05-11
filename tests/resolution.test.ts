@@ -47,14 +47,14 @@ afterAll(() => {
 });
 
 describe("resolveProviderConfig", () => {
-  test("uses fallback key detection order (google first)", () => {
+  test("uses fallback key detection order (openai first)", () => {
     process.env["GOOGLE_GENERATIVE_AI_API_KEY"] = "google-key";
     process.env["OPENAI_API_KEY"] = "openai-key";
 
     const resolved = resolveProviderConfig();
-    expect(resolved.id).toBe("google");
+    expect(resolved.id).toBe("openai");
     expect(resolved.modelId).toBe(
-      providerRegistryById["google"].defaultModelId,
+      providerRegistryById["openai"].defaultModelId,
     );
   });
 
