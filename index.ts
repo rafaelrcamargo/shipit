@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
@@ -8,13 +8,13 @@ import {
   responseSchema,
   systemInstruction,
   userInstruction,
-} from "./constants.ts";
-import { formatAiError } from "./errors.ts";
+} from "./constants";
+import { formatAiError } from "./errors";
 import { collectUntrackedFileContexts } from "./model-input";
 import { version } from "./package.json" with { type: "json" };
-import { handlePullRequest } from "./pr.ts";
-import { createPrompts } from "./prompts.ts";
-import { handlePush } from "./push.ts";
+import { handlePullRequest } from "./pr";
+import { createPrompts } from "./prompts";
+import { handlePush } from "./push";
 import { defaultGenerationProviderOptions } from "./registry";
 import { resolveProviderConfig } from "./resolution";
 import {
@@ -24,7 +24,7 @@ import {
   getErrorMessage,
   pluralize,
   wrapText,
-} from "./utils.ts";
+} from "./utils";
 
 const cli = new CAC("shipit");
 
@@ -196,23 +196,24 @@ Pick a lane:
   const createdCommitHashes: string[] = [];
 
   try {
-    const { object } = await generateObject({
+    const { output } = await generateText({
       model: aiConfig.model,
       providerOptions: defaultGenerationProviderOptions,
-      output: "array",
-      schema: responseSchema,
-      schemaName: "commit",
-      schemaDescription: "A focused commit group",
+      output: Output.array({
+        element: responseSchema,
+        name: "commit",
+        description: "A focused commit group",
+      }),
       system: systemInstruction,
       prompt,
     });
 
     commitSpinner.stop("Here come the goods...");
-    if (object.length === 0) {
+    if (output.length === 0) {
       log.info("AI didn't propose any commits for these changes.");
     }
 
-    for (const commit of object) {
+    for (const commit of output) {
       const description = decapitalizeFirstLetter(commit.description);
       let prefix = `${commit.type}${
         commit.scope?.length ? `(${commit.scope})` : ""

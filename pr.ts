@@ -3,7 +3,7 @@ import { unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { generateObject, type LanguageModel } from "ai";
+import { generateText, type LanguageModel, Output } from "ai";
 import chalk from "chalk";
 import type { SimpleGit } from "simple-git";
 
@@ -130,13 +130,13 @@ export async function handlePullRequest({
 
     let prInfo;
     try {
-      const result = await generateObject({
+      const result = await generateText({
         model,
         providerOptions: defaultGenerationProviderOptions,
-        schema: prSchema,
+        output: Output.object({ schema: prSchema }),
         prompt: prInstruction(commits.all, template || undefined),
       });
-      prInfo = result.object;
+      prInfo = result.output;
     } catch (error) {
       prSpinner.stop("Couldn't generate PR content.");
       log.error(formatAiError(error));
