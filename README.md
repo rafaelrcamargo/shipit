@@ -4,15 +4,15 @@
 
 ![Demo of shipit generating commit messages](shipit.gif)
 
-Tired of staring at your messy diff wondering what the hell to call this commit? This bad boy analyzes your chaotic changes and gets AI to do the heavy lifting, writing actual commit messages that don't suck. It's smart enough to group your scattered changes into logical commits, follows conventional commit standards _(because we're not animals)_, and can even whip up GitHub PRs with descriptions that won't make your teammates cry. Say goodbye to `wip`, `asdf`, and `checkpoint` for now. Your Git history will finally look like you know what you're doing[^1].
+Staring at a messy diff and about to type `fix stuff` again? `shipit` looks at your current Git changes, groups related work into commits, writes Conventional Commit messages, and can draft a GitHub PR when you're ready. Review the plan, accept the commits you want, and keep your history cleaner than `wip`, `asdf`, and `checkpoint`.
 
-[^1]: Self-criticism from the creator here, I made this tool because my own Git history was a disaster. :D
+[^1]: Self-criticism from the creator here. I made this because my own Git history had way too many `wip` commits.
 
 > [!IMPORTANT]
 > This tool requires one of the following AI provider API keys to be set as an environment variable:
 >
-> - **Gemini 3 Flash Preview (Google)**: `GOOGLE_GENERATIVE_AI_API_KEY` - Get yours at <https://aistudio.google.com/app/apikey>
-> - **GPT-5.1 Codex Mini (OpenAI)**: `OPENAI_API_KEY` - Get yours at <https://platform.openai.com/api-keys>
+> - **GPT-5.4 Mini (OpenAI)**: `OPENAI_API_KEY` - Get yours at <https://platform.openai.com/api-keys>
+> - **Gemini 3.5 Flash (Google)**: `GOOGLE_GENERATIVE_AI_API_KEY` - Get yours at <https://aistudio.google.com/app/apikey>
 > - **Claude Haiku 4.5 (Anthropic)**: `ANTHROPIC_API_KEY` - Get yours at <https://console.anthropic.com/>
 > - **Kimi K2 0905 (Groq)**: `GROQ_API_KEY` - Get yours at <https://console.groq.com/keys>
 >
@@ -30,9 +30,16 @@ export OPENAI_API_KEY="..."
 export ANTHROPIC_API_KEY="..."
 export GROQ_API_KEY="..."
 
+# Optional: enrich commit/PR prompts with Linear tickets referenced by --ticket
+# or discovered from branches/commits, e.g. ENG-123
+export LINEAR_API_KEY="..."
+
+# Optional: disable read-only GitHub prompt context collection
+export SHIPIT_DISABLE_GH=1
+
 # Optional: force provider/model selection instead of key-order fallback
 export SHIPIT_PROVIDER="openai" # google | openai | anthropic | groq
-export SHIPIT_MODEL="gpt-5.1-codex-mini"
+export SHIPIT_MODEL="gpt-5.4-mini"
 ```
 
 ### Provider and Model Overrides
@@ -47,8 +54,8 @@ Resolution order:
 1. If `SHIPIT_PROVIDER` is set, `shipit` uses it directly.
 2. If `SHIPIT_MODEL` is set, `SHIPIT_PROVIDER` is required.
 3. If no override is set, `shipit` falls back to API key detection order:
-   - `GOOGLE_GENERATIVE_AI_API_KEY`
    - `OPENAI_API_KEY`
+   - `GOOGLE_GENERATIVE_AI_API_KEY`
    - `ANTHROPIC_API_KEY`
    - `GROQ_API_KEY`
 
@@ -68,7 +75,7 @@ Set these once in your shell profile so they apply to every terminal.
 ```bash
 export OPENAI_API_KEY="..."
 export SHIPIT_PROVIDER="openai"
-export SHIPIT_MODEL="gpt-5.1-codex-mini"
+export SHIPIT_MODEL="gpt-5.4-mini"
 ```
 
 #### bash (`~/.bashrc`)
@@ -76,7 +83,7 @@ export SHIPIT_MODEL="gpt-5.1-codex-mini"
 ```bash
 export OPENAI_API_KEY="..."
 export SHIPIT_PROVIDER="openai"
-export SHIPIT_MODEL="gpt-5.1-codex-mini"
+export SHIPIT_MODEL="gpt-5.4-mini"
 ```
 
 #### fish (`config.fish`)
@@ -84,7 +91,7 @@ export SHIPIT_MODEL="gpt-5.1-codex-mini"
 ```fish
 set -Ux OPENAI_API_KEY "..."
 set -Ux SHIPIT_PROVIDER "openai"
-set -Ux SHIPIT_MODEL "gpt-5.1-codex-mini"
+set -Ux SHIPIT_MODEL "gpt-5.4-mini"
 ```
 
 #### PowerShell (`$PROFILE`)
@@ -92,7 +99,7 @@ set -Ux SHIPIT_MODEL "gpt-5.1-codex-mini"
 ```powershell
 $env:OPENAI_API_KEY="..."
 $env:SHIPIT_PROVIDER="openai"
-$env:SHIPIT_MODEL="gpt-5.1-codex-mini"
+$env:SHIPIT_MODEL="gpt-5.4-mini"
 ```
 
 Reload your shell after editing profile files:
@@ -109,6 +116,20 @@ echo "$SHIPIT_MODEL"
 shipit --help
 shipit
 ```
+
+### Context Sources
+
+`shipit` builds bounded read-only context before asking the AI for commits or PR descriptions:
+
+- Git context is always collected: branch/base, commit list, diff stats, changed files, and selected ChangeSet evidence.
+- GitHub context is opportunistic through `gh` when the CLI is installed and authenticated. Set `SHIPIT_DISABLE_GH=1` to skip read-only GitHub context collection.
+- Linear context is enabled only when `LINEAR_API_KEY` is configured. It looks for issue IDs like `ENG-123` from `--ticket`, the current branch, and commits, then includes compact ticket details in the prompt. See the [Linear SDK docs](https://linear.app/developers/sdk) for API key setup.
+
+Linear and GitHub failures do not block local commits. They are treated as optional unavailable context. `SHIPIT_DISABLE_GH=1` only disables prompt context collection; creating a PR with `--pr` still uses `gh`.
+
+Lockfiles, generated files, and binary files stay covered by change IDs, but their raw diffs are summary-only by default. Ordinary source changes are not dropped to fit one prompt; when the evidence is large, `shipit` plans commit groups first and then makes focused AI requests for each group. While this runs, the active spinner shows the current AI phase, streamed group progress, retries, chunking, and compact token/latency summaries without printing prompts or model output.
+
+For the internal pipeline, AI request flow, and small/big/huge diff behavior, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 > [!TIP]
 > Add an alias to your shell config file _(`.bashrc`, `.zshrc`)_ to better suit your workflow. I personally use:
@@ -129,36 +150,45 @@ Each workflow run will produce a set of artifacts, one for each target platform.
 # Basic usage
 shipit                    # Process all changed files
 shipit index.ts utils.ts  # Process specific files
+shipit .                  # Process changes under the current directory
+shipit ./src              # Process changes under src
 
 shipit --help             # Show help and all options
+shipit status             # Show provider, key, and context status
 ```
 
 ### Flags
 
-| Flag | Long Form           | Description                                               |
-| ---- | ------------------- | --------------------------------------------------------- |
-| `-y` | `--yes`             | Automatically accept all commits (same as `--force`)      |
-| `-f` | `--force`           | Automatically accept all commits (same as `--yes`)        |
-| `-u` | `--unsafe`          | Skip token count verification                             |
-| `-p` | `--push`            | Push the changes after processing all commits             |
-|      | `--pr`              | Create a pull request (works with or without new commits) |
-| `-a` | `--appendix <text>` | Add extra context to the commit generation prompt         |
+| Flag | Long Form                | Description                                                                 |
+| ---- | ------------------------ | --------------------------------------------------------------------------- |
+| `-y` | `--yes`                  | Automatically accept generated commit prompts                               |
+|      | `--skip-token-check`     | Skip token count confirmation                                               |
+| `-p` | `--push`                 | Push the changes after processing all commits                               |
+|      | `--pr`, `--pull-request` | Create a pull request; without path args, works with or without new commits |
+| `-t` | `--ticket <id>`          | Add a ticket ID, repeatable                                                 |
+|      | `--context <text>`       | Add extra context to the commit and PR prompts                              |
 
 ### Common Examples
 
 ```bash
-# The want-to-get-shit-done combo
-shipit -fu                # Force commits + skip token verification
+# Quick commit flow
+shipit -y --skip-token-check # Auto-accept commits + skip token confirmation
 
-# The no-time-to-waste combo
+# Commit and PR flow
 shipit -y --pr            # Auto-accept commits + create PR
+shipit --pr               # Create PR for an already-committed branch
 
-# Add context to help AI understand your changes
-shipit -a "refactoring for performance"
+# Add context and tickets to help AI understand your changes
+shipit --context "refactoring for performance"
+shipit --ticket ENG-123 --ticket API-456
 
 # Full automation: commit, push, and create PR
 shipit -y --push --pr
 ```
+
+### Status
+
+Use `shipit status` to inspect the local setup without making an AI request. It reports the resolved provider/model, configured API key env vars, provider overrides, Linear availability, GitHub CLI auth, `SHIPIT_DISABLE_GH`, and basic Git repository context. Secret values are never printed. If `LINEAR_API_KEY` is missing, `--ticket` IDs are still included in prompts, but Linear issue details are not fetched.
 
 ### PR Template Support
 
@@ -168,6 +198,7 @@ When a template is found, you'll see: `Found PR template at {path} - following r
 
 > [!NOTE]
 > To generate pull requests with `--pr`, you'll need the [GitHub CLI](https://cli.github.com/) installed and authenticated. For private repositories, ensure you have the necessary permissions.
+> When path args are provided, `shipit --pr <path>` only acts on that selected path and exits without creating a PR if that path has no changes.
 
 <details>
 <summary>
@@ -176,12 +207,12 @@ When a template is found, you'll see: `Found PR template at {path} - following r
 
 </summary>
 
-`shipit` was built after months of using other AI-powered commit tools and finding they fell just short of the ideal workflow; so close, yet so far. While fantastic tools like `cz-git` and Cursor exist, `shipit` takes a different path to solve a few key annoyances.
+`shipit` was built after months of using other AI-powered commit tools and wanting something more terminal-native. Tools like `cz-git` and Cursor are useful, but `shipit` takes a different path for a few common annoyances.
 
-- **[`cz-git`](https://github.com/Zhengqbbb/cz-git):** A fantastic, highly customizable tool for the entire git workflow. However, the AI integration feels more like an addon. Because the prompts are simple and lack the full context of your changes, you can end up with generic, high-level commit messages like `refactor: rewrote the whole thing` or `feat: introducing D the genius language succeeding C`. While technically correct, these messages can be more alarming than informative, creating noise in the git history. (All that said, it's pretty fast :))
+- **[`cz-git`](https://github.com/Zhengqbbb/cz-git):** A solid, highly customizable tool for the Git workflow. Its AI integration is lighter than `shipit`'s context-first approach, so commit messages can end up too generic for larger diffs.
 
-- **Cursor (and other AI Editors):** In-editor AI commit tools are powerful, but they come with their own friction. You often need to craft your own prompts or guidelines on the fly, and it pulls you out of a terminal-centric workflow. Sometimes, you just want to fire off a commit from the command line without switching contexts.
+- **Cursor (and other AI editors):** In-editor AI commit tools are useful, but they can pull you out of a terminal flow. Sometimes you just want to make a clean commit without switching context.
 
-The idea behind `shipit` is that with modern, large-context models, the AI is already smart enough to understand the "why" behind your changes just by reading the `diff`. It lets the model do the heavy lifting, saving you from playing prompt engineer and giving you back precise, context-aware commit messages.
+The idea behind `shipit` is simple: collect the right Git context locally, ask the model for structured output, validate it, then let you approve the result without babysitting prompts.
 
 </details>
