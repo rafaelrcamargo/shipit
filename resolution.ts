@@ -20,11 +20,14 @@ const listSupportedProviders = () =>
 const isProviderId = (value: string): value is ProviderId =>
   Object.hasOwn(providerRegistryById, value);
 
+const hasApiKey = (envName: ProviderApiKeyEnv): boolean =>
+  process.env[envName]?.trim().length ? true : false;
+
 const assertApiKeyAvailable = (
   providerId: ProviderId,
   provider: RegisteredProvider,
 ) => {
-  if (process.env[provider.requiredApiKeyEnv]) return;
+  if (hasApiKey(provider.requiredApiKeyEnv)) return;
 
   throw new Error(
     `Missing API key for ${provider.providerLabel}. Set \`${provider.requiredApiKeyEnv}\` before using \`${PROVIDER_ENV}=${providerId}\`.`,
@@ -91,7 +94,7 @@ export const resolveProviderConfig = (): ResolvedProviderConfig => {
 
   if (modelOverrideRaw !== undefined && !providerOverride) {
     throw new Error(
-      `\`${MODEL_ENV}\` requires \`${PROVIDER_ENV}\` to be set. Example: \`${PROVIDER_ENV}=openai ${MODEL_ENV}=gpt-5.1-codex-mini\`.`,
+      `\`${MODEL_ENV}\` requires \`${PROVIDER_ENV}\` to be set. Example: \`${PROVIDER_ENV}=openai ${MODEL_ENV}=gpt-5.4-mini\`.`,
     );
   }
 
@@ -114,7 +117,7 @@ export const resolveProviderConfig = (): ResolvedProviderConfig => {
   }
 
   for (const [providerId, provider] of providerRegistryEntries) {
-    if (!process.env[provider.requiredApiKeyEnv]) continue;
+    if (!hasApiKey(provider.requiredApiKeyEnv)) continue;
     return createResolution(providerId, provider, provider.defaultModelId);
   }
 

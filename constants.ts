@@ -1,8 +1,9 @@
-import type { DefaultLogFields, ListLogLine } from "simple-git";
 import { z } from "zod";
 
 import type { ChangeSet } from "./changes";
 import { serializeChangeSetForPrompt } from "./changes";
+import type { RepoContext } from "./context";
+import { serializeRepoContextForPrompt } from "./context";
 import type { PrTemplate } from "./template";
 
 export const systemInstruction = `# Expert \`git\` companion
@@ -131,39 +132,59 @@ Refs: #123
 5. NEVER repeat the \`type\` or \`scope\` in the description.
 6. Be really mindful about BREAKING CHANGES, only use them if the change is really CORE to the application.`;
 
-export const userInstruction = (
+export const planningInstruction = (
   changeSet: ChangeSet,
-  appendix?: string,
+  repoContext?: RepoContext,
+  context?: string,
 ) => `## Instructions
 
-You are an expert software developer tasked with writing a commit message for the following changes. Adhere to the **Conventional Commits** specification. The commit message should have a concise subject line and a more detailed body explaining the "what" and "why" of the changes.
+Plan focused atomic commits for the selected changes. Return only commit groups with the exact change IDs that belong together. Do not write final commit messages in this step.
 
 ## Git Context
+
+${
+  repoContext
+    ? `### Repository Context JSON
+
+${JSON.stringify(serializeRepoContextForPrompt(repoContext))}
+
+`
+    : ""
+}
 
 ### Selected Changes JSON
 
 These are the canonical changes selected for this run. Every \`id\` in this list must appear in exactly one output \`changeIds\` array. Do not include any ID that is not in this list.
 
-${JSON.stringify(serializeChangeSetForPrompt(changeSet))}
+${JSON.stringify(
+  serializeChangeSetForPrompt(changeSet, { includeTextEvidence: false }),
+)}
 ${
-  appendix?.trim()
+  context?.trim()
     ? `
 
 ## Additional Context
 
-${appendix.trim()}`
+${context.trim()}`
     : ""
 }
 
 ---
 
-## Commit Message:`;
+## Commit Groups:`;
 
-export const responseSchema = z.object({
+export const commitPlanGroupSchema = z.object({
   changeIds: z
     .array(z.string().min(1))
     .min(1)
     .describe("Non-empty array of change IDs affected by this commit group"),
+  summary: z
+    .string()
+    .min(1)
+    .describe("Short factual summary of why these changes belong together"),
+});
+
+const commitMessageFields = {
   type: z
     .enum([
       "fix",
@@ -197,13 +218,106 @@ export const responseSchema = z.object({
     .describe(
       "Array of footer strings (e.g., 'BREAKING CHANGE: ...', 'Closes #123')",
     ),
+};
+
+export const commitMessageSchema = z.object(commitMessageFields);
+
+export const responseSchema = z.object({
+  changeIds: z
+    .array(z.string().min(1))
+    .min(1)
+    .describe("Non-empty array of change IDs affected by this commit group"),
+  ...commitMessageFields,
 });
 
 export type CommitGroup = z.infer<typeof responseSchema>;
+export type CommitPlanGroup = z.infer<typeof commitPlanGroupSchema>;
+export type CommitMessage = z.infer<typeof commitMessageSchema>;
+
+export const commitMessageInstruction = (
+  changeSet: ChangeSet,
+  plannedGroup: CommitPlanGroup,
+  repoContext?: RepoContext,
+  context?: string,
+  chunkSummaries: string[] = [],
+) => `## Instructions
+
+Write one Conventional Commit message for this planned commit group. The output must describe exactly these change IDs and no others:
+
+${plannedGroup.changeIds.join(", ")}
+
+Planning summary: ${plannedGroup.summary}
+
+## Git Context
+
+${
+  repoContext
+    ? `### Repository Context JSON
+
+${JSON.stringify(serializeRepoContextForPrompt(repoContext))}
+
+`
+    : ""
+}
+
+### Selected Group Changes JSON
+
+${JSON.stringify(
+  serializeChangeSetForPrompt(changeSet, {
+    includeTextEvidence: chunkSummaries.length === 0,
+  }),
+)}
+${
+  chunkSummaries.length > 0
+    ? `
+
+### Evidence Chunk Summaries
+
+${JSON.stringify(chunkSummaries)}
+`
+    : ""
+}${
+  context?.trim()
+    ? `
+
+## Additional Context
+
+${context.trim()}`
+    : ""
+}
+
+---
+
+## Commit Message:`;
+
+export const chunkSummarySchema = z.object({
+  summary: z
+    .string()
+    .min(1)
+    .describe("Compact factual summary of the provided change evidence"),
+});
+
+export const chunkSummaryInstruction = (
+  changeSet: ChangeSet,
+  plannedGroup: CommitPlanGroup,
+  chunkIndex: number,
+  chunkCount: number,
+) => `Summarize this evidence chunk for a later commit-message request.
+
+Commit group: ${plannedGroup.summary}
+Change IDs in complete group: ${plannedGroup.changeIds.join(", ")}
+Chunk: ${chunkIndex} of ${chunkCount}
+
+Focus on the intent and reviewer-relevant details. Do not invent changes.
+
+### Chunk Changes JSON
+
+${JSON.stringify(serializeChangeSetForPrompt(changeSet))}`;
 
 export const prInstruction = (
-  commits: readonly (DefaultLogFields & ListLogLine)[],
+  repoContext: RepoContext,
   template?: PrTemplate,
+  context?: string,
 ) => {
   const basePrompt = `# Pull Request Description Generator
 
@@ -220,9 +334,19 @@ Your persona is that of a senior developer who values precision, clarity, and st
 5. **Avoid exaggeration**: Never use words like "dramatically", "significantly", "greatly", "massively", or similar intensifiers.
 6. **Match scope to impact**: Small changes should have modest descriptions, not grand proclamations.
 
-## Commits to Analyze
+## Repository Context
 
-${commits.map((c) => `- ${c.message}`).join("\n")}`;
+${JSON.stringify(serializeRepoContextForPrompt(repoContext))}
+
+Use this context to describe what changed and why. Prefer concrete information from commits, changed files, diff stats, linked issues, and existing PR context when available.${
+    context?.trim()
+      ? `
+
+## Additional Context
+
+${context.trim()}`
+      : ""
+  }`;
 
   if (template) {
     return `${basePrompt}

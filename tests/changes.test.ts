@@ -9,6 +9,7 @@ import {
   collectChangeSet,
   getChangeSetDrift,
   getPathspecsForChangeIds,
+  isNoisyPath,
   parsePorcelainV2,
   validateCommitCoverage,
 } from "../changes";
@@ -69,6 +70,29 @@ describe("parsePorcelainV2", () => {
       expect.objectContaining({ type: "untracked", path: "src/untracked.ts" }),
       expect.objectContaining({ type: "unmerged", path: "src/conflict.ts" }),
     ]);
+  });
+});
+
+describe("isNoisyPath", () => {
+  test("detects noisy defaults without flagging normal source files", () => {
+    expect(
+      [
+        "bun.lock",
+        "bun.lockb",
+        "package-lock.json",
+        "npm-shrinkwrap.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "Cargo.lock",
+        "go.sum",
+        "poetry.lock",
+        "uv.lock",
+        "Gemfile.lock",
+        "dist/app.min.js",
+        "dist/app.js.map",
+      ].filter((path) => !isNoisyPath(path)),
+    ).toEqual([]);
+    expect(isNoisyPath("src/index.ts")).toBe(false);
   });
 });
 
@@ -225,6 +249,146 @@ describe("collectChangeSet", () => {
           original.changes.map((change) => change.id),
         ),
       ).toEqual(["C001 modified: base.txt changed"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("summarizes lockfile text diffs but keeps summary stats", async () => {
+    const { root, git } = await createTempRepo();
+
+    try {
+      await writeFile(join(root, "package.json"), '{"dependencies":{}}\n');
+      await writeFile(join(root, "bun.lock"), "old lock\n");
+      await git.add(["package.json", "bun.lock"]);
+      await git.commit("add package files");
+
+      await writeFile(
+        join(root, "package.json"),
+        '{"dependencies":{"left-pad":"1.0.0"}}\n',
+      );
+      await writeFile(join(root, "bun.lock"), "new lock\n");
+
+      const changeSet = await collectChangeSet(git, []);
+      const packageChange = changeSet.changes.find(
+        (change) => change.path === "package.json",
+      );
+      const lockChange = changeSet.changes.find(
+        (change) => change.path === "bun.lock",
+      );
+
+      expect(packageChange?.evidence.diff).toContain("left-pad");
+      expect(lockChange).toMatchObject({
+        path: "bun.lock",
+        evidence: {
+          isNoisy: true,
+          isSummaryOnly: true,
+          summaryReason:
+            "text diff summarized because file is treated as noisy/generated",
+        },
+      });
+      expect(lockChange?.evidence.diff).toBeUndefined();
+      expect(lockChange?.evidence.stats).toMatchObject({
+        insertions: 1,
+        deletions: 1,
+        isBinary: false,
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps lockfile-only changes covered by a change ID", async () => {
+    const { root, git } = await createTempRepo();
+
+    try {
+      await writeFile(join(root, "bun.lock"), "old lock\n");
+      await git.add("bun.lock");
+      await git.commit("add lockfile");
+      await writeFile(join(root, "bun.lock"), "new lock\n");
+
+      const changeSet = await collectChangeSet(git, []);
+
+      expect(changeSet.changes).toContainEqual(
+        expect.objectContaining({
+          id: "C001",
+          path: "bun.lock",
+          evidence: expect.objectContaining({
+            isNoisy: true,
+            isSummaryOnly: true,
+          }),
+        }),
+      );
+      expect(
+        validateCommitCoverage([{ changeIds: ["C001"] }], ["C001"]).ok,
+      ).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("truncates large normal diffs to fit the per-file evidence budget", async () => {
+    const { root, git } = await createTempRepo();
+
+    try {
+      await writeFile(join(root, "base.txt"), "base\n");
+      await writeFile(
+        join(root, "base.txt"),
+        `base\n${Array.from({ length: 500 }, (_, index) => `line ${index}`).join("\n")}\n`,
+      );
+
+      const changeSet = await collectChangeSet(git, [], {
+        maxDiffChars: 2000,
+      });
+      const change = changeSet.changes.find((item) => item.path === "base.txt");
+
+      expect(change?.evidence.diff?.length).toBeLessThanOrEqual(2000);
+      expect(change?.evidence.isTruncated).toBe(true);
+      expect(change?.evidence.truncationReason).toBe(
+        "text diff truncated to fit per-file evidence budget",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps normal source evidence available for multi-request handling", async () => {
+    const { root, git } = await createTempRepo();
+
+    try {
+      await writeFile(join(root, "first.ts"), "export const first = 1;\n");
+      await writeFile(join(root, "second.ts"), "export const second = 1;\n");
+      await git.add(["first.ts", "second.ts"]);
+      await git.commit("add source files");
+
+      await writeFile(
+        join(root, "first.ts"),
+        Array.from(
+          { length: 80 },
+          (_, index) => `export const a${index} = ${index};`,
+        ).join("\n"),
+      );
+      await writeFile(
+        join(root, "second.ts"),
+        Array.from(
+          { length: 80 },
+          (_, index) => `export const b${index} = ${index};`,
+        ).join("\n"),
+      );
+
+      const changeSet = await collectChangeSet(git, [], {
+        maxDiffChars: 1200,
+      });
+      const sourceChanges = changeSet.changes.filter((change) =>
+        change.path.endsWith(".ts"),
+      );
+
+      expect(sourceChanges).toHaveLength(2);
+      for (const change of sourceChanges) {
+        expect(change.evidence.diff).toBeDefined();
+        expect(change.evidence.isSummaryOnly).toBe(false);
+        expect(change.evidence.isUnavailable).toBe(false);
+      }
     } finally {
       await rm(root, { recursive: true, force: true });
     }

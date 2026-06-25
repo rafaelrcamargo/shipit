@@ -53,12 +53,6 @@ export const pluralize = (
   return plural || `${singular}s`;
 };
 
-/**
- * Wraps text to a specified maximum width.
- * @param text The text to wrap.
- * @param maxWidth The maximum width of each line (default: 80).
- * @returns The wrapped text as a single string with newlines.
- */
 export const wrapText = (text: string, maxWidth: number = 80): string => {
   const words = text.split(" ");
   const lines: string[] = [];
@@ -87,27 +81,16 @@ export const wrapText = (text: string, maxWidth: number = 80): string => {
   return lines.join("\n");
 };
 
-/**
- * Safely gets an error message from an unknown type.
- * @param error The error object, which can be of any type.
- * @returns A string representing the error message.
- */
 export const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-/**
- * Retrieves the base branch of the repository, trying 'main' first, then 'master'.
- * @param git A simple-git instance.
- * @returns The name of the base branch.
- * @throws If no base branch is found.
- */
 export const getBaseBranch = async (git: SimpleGit): Promise<string> => {
   for (const branch of ["main", "master"]) {
     try {
       await git.revparse(["--verify", `origin/${branch}`]);
       return branch;
     } catch {
-      // Branch doesn't exist, so we try the next one
+      continue;
     }
   }
 

@@ -53,10 +53,19 @@ export type ChangeEvidence = {
   summary: string;
   diff?: string;
   content?: string;
+  stats?: {
+    insertions?: number;
+    deletions?: number;
+    isBinary: boolean;
+  };
+  isNoisy: boolean;
   isBinary: boolean;
   isTruncated: boolean;
-  isOmitted: boolean;
-  omittedReason?: string;
+  isSummaryOnly: boolean;
+  isUnavailable: boolean;
+  summaryReason?: string;
+  truncationReason?: string;
+  unavailableReason?: string;
 };
 
 export type GitChange = {
@@ -98,18 +107,39 @@ type CommitChangeGroup = {
 
 type EvidenceOptions = {
   maxDiffChars?: number;
-  maxUntrackedContentFiles?: number;
   maxUntrackedContentBytes?: number;
 };
 
 const emptyEvidence = (summary: string): ChangeEvidence => ({
   summary,
+  isNoisy: false,
   isBinary: false,
   isTruncated: false,
-  isOmitted: false,
+  isSummaryOnly: false,
+  isUnavailable: false,
 });
 
 const normalizePath = (path: string): string => path.replace(/\\/g, "/");
+
+const noisyPathPatterns = [
+  /^bun\.lockb?$/,
+  /^package-lock\.json$/,
+  /^npm-shrinkwrap\.json$/,
+  /^pnpm-lock\.yaml$/,
+  /^yarn\.lock$/,
+  /^Cargo\.lock$/,
+  /^go\.sum$/,
+  /^poetry\.lock$/,
+  /^uv\.lock$/,
+  /^Gemfile\.lock$/,
+  /\.min\.js$/,
+  /\.map$/,
+] as const;
+
+export const isNoisyPath = (path: string): boolean =>
+  noisyPathPatterns.some((pattern) =>
+    pattern.test(path.split("/").at(-1) ?? path),
+  );
 
 const toWorkingTreePath = (repoRoot: string, path: string): string =>
   join(repoRoot, path);
@@ -336,6 +366,20 @@ const truncate = (
   isTruncated: value.length > maxChars,
 });
 
+const parseNumstatLine = (
+  output: string,
+): ChangeEvidence["stats"] | undefined => {
+  const [insertionsRaw, deletionsRaw] = output.split("\t");
+  if (!insertionsRaw || !deletionsRaw) return undefined;
+
+  const isBinary = insertionsRaw === "-" || deletionsRaw === "-";
+  return {
+    insertions: isBinary ? undefined : Number(insertionsRaw),
+    deletions: isBinary ? undefined : Number(deletionsRaw),
+    isBinary,
+  };
+};
+
 const readBoundedTextFile = async (
   repoRoot: string,
   path: string,
@@ -350,7 +394,7 @@ const readBoundedTextFile = async (
 
     if (bytes.includes(0)) {
       return {
-        content: "[binary file omitted]",
+        content: "[binary file summary only]",
         isBinary: true,
         isTruncated: false,
       };
@@ -423,46 +467,79 @@ const attachEvidence = async (
   repoRoot: string,
   change: GitChange,
   options: Required<EvidenceOptions>,
-  untrackedContentIndex: number,
 ): Promise<GitChange> => {
-  let evidence = emptyEvidence(getChangeTitle(change));
+  const isNoisy = isNoisyPath(change.path);
+  let evidence = {
+    ...emptyEvidence(getChangeTitle(change)),
+    isNoisy,
+  };
 
   if (change.kind === "untracked") {
-    if (untrackedContentIndex >= options.maxUntrackedContentFiles) {
+    try {
+      const content = await readBoundedTextFile(
+        repoRoot,
+        change.path,
+        options.maxUntrackedContentBytes,
+      );
+      const isBinary = content.isBinary;
+      const isSummaryOnly = isNoisy || isBinary;
       evidence = {
         ...evidence,
-        isOmitted: true,
-        omittedReason: `untracked content omitted after ${options.maxUntrackedContentFiles} files`,
+        ...content,
+        content: isSummaryOnly ? undefined : content.content,
+        isBinary,
+        isTruncated: content.isTruncated,
+        isSummaryOnly,
+        summaryReason: isNoisy
+          ? "text content summarized because file is treated as noisy/generated"
+          : isBinary
+            ? "binary file summarized without raw content"
+            : undefined,
+        truncationReason: content.isTruncated
+          ? "text content truncated to fit per-file evidence budget"
+          : undefined,
       };
-    } else {
-      try {
-        const content = await readBoundedTextFile(
-          repoRoot,
-          change.path,
-          options.maxUntrackedContentBytes,
-        );
-        evidence = {
-          ...evidence,
-          ...content,
-        };
-      } catch (error) {
-        evidence = {
-          ...evidence,
-          isOmitted: true,
-          omittedReason: error instanceof Error ? error.message : String(error),
-        };
-      }
+    } catch (error) {
+      evidence = {
+        ...evidence,
+        isUnavailable: true,
+        unavailableReason:
+          error instanceof Error ? error.message : String(error),
+      };
     }
   } else {
-    const rawDiff = await git.diff(["HEAD", "--", ...change.commitPathspecs]);
+    const [rawDiff, numstat] = await Promise.all([
+      isNoisy
+        ? Promise.resolve("")
+        : git.diff(["HEAD", "--", ...change.commitPathspecs]),
+      git.diff(["--numstat", "HEAD", "--", ...change.commitPathspecs]),
+    ]);
     const diff = truncate(rawDiff, options.maxDiffChars);
+    const stats = parseNumstatLine(numstat);
+    const isBinary = stats?.isBinary ?? false;
+    const hasTextualDiff = rawDiff.trim().length > 0;
+    const isSummaryOnly = isNoisy || isBinary;
     evidence = {
       ...evidence,
-      diff: diff.value,
-      isTruncated: diff.isTruncated,
-      isOmitted: rawDiff.trim().length === 0,
-      omittedReason:
-        rawDiff.trim().length === 0 ? "no textual diff available" : undefined,
+      stats,
+      diff: isSummaryOnly || !hasTextualDiff ? undefined : diff.value,
+      isBinary,
+      isTruncated: isSummaryOnly ? false : diff.isTruncated,
+      isSummaryOnly,
+      isUnavailable: !isSummaryOnly && !hasTextualDiff,
+      summaryReason: isNoisy
+        ? "text diff summarized because file is treated as noisy/generated"
+        : isBinary
+          ? "binary file summarized without raw diff"
+          : undefined,
+      truncationReason:
+        !isSummaryOnly && diff.isTruncated
+          ? "text diff truncated to fit per-file evidence budget"
+          : undefined,
+      unavailableReason:
+        !isSummaryOnly && !hasTextualDiff
+          ? "no textual diff available"
+          : undefined,
     };
   }
 
@@ -477,35 +554,26 @@ const attachEvidence = async (
   };
 };
 
+export const getChangeEvidenceTextLength = (change: GitChange): number =>
+  (change.evidence.diff?.length ?? 0) + (change.evidence.content?.length ?? 0);
+
 const assignIdsAndEvidence = async (
   git: SimpleGit,
   repoRoot: string,
   changes: GitChange[],
   options: Required<EvidenceOptions>,
 ): Promise<GitChange[]> => {
-  let untrackedContentIndex = 0;
   const changesWithEvidence: GitChange[] = [];
 
-  for (let index = 0; index < changes.length; index++) {
-    const change = changes[index];
-    if (!change) continue;
-
+  for (const [index, change] of changes.entries()) {
     const changeWithId = {
       ...change,
       id: `C${String(index + 1).padStart(3, "0")}`,
     };
 
     changesWithEvidence.push(
-      await attachEvidence(
-        git,
-        repoRoot,
-        changeWithId,
-        options,
-        untrackedContentIndex,
-      ),
+      await attachEvidence(git, repoRoot, changeWithId, options),
     );
-
-    if (change.kind === "untracked") untrackedContentIndex++;
   }
 
   return changesWithEvidence;
@@ -539,7 +607,6 @@ export const collectChangeSet = async (
 ): Promise<ChangeSet> => {
   const options: Required<EvidenceOptions> = {
     maxDiffChars: evidenceOptions.maxDiffChars ?? 12000,
-    maxUntrackedContentFiles: evidenceOptions.maxUntrackedContentFiles ?? 20,
     maxUntrackedContentBytes: evidenceOptions.maxUntrackedContentBytes ?? 12000,
   };
 
@@ -590,7 +657,33 @@ export const collectChangeSet = async (
   };
 };
 
-export const serializeChangeSetForPrompt = (changeSet: ChangeSet) =>
+type SerializeChangeSetOptions = {
+  includeTextEvidence?: boolean;
+};
+
+const serializeEvidenceForPrompt = (
+  evidence: ChangeEvidence,
+  { includeTextEvidence = true }: SerializeChangeSetOptions = {},
+) => ({
+  summary: evidence.summary,
+  stats: evidence.stats,
+  isNoisy: evidence.isNoisy,
+  isBinary: evidence.isBinary,
+  isTruncated: evidence.isTruncated,
+  isSummaryOnly: evidence.isSummaryOnly,
+  isUnavailable: evidence.isUnavailable,
+  summaryReason: evidence.summaryReason,
+  truncationReason: evidence.truncationReason,
+  unavailableReason: evidence.unavailableReason,
+  ...(includeTextEvidence
+    ? { diff: evidence.diff, content: evidence.content }
+    : {}),
+});
+
+export const serializeChangeSetForPrompt = (
+  changeSet: ChangeSet,
+  options: SerializeChangeSetOptions = {},
+) =>
   changeSet.changes.map((change) => ({
     id: change.id,
     kind: change.kind,
@@ -600,8 +693,28 @@ export const serializeChangeSetForPrompt = (changeSet: ChangeSet) =>
     worktreeState: change.worktreeState,
     stagePathspecs: change.stagePathspecs,
     commitPathspecs: change.commitPathspecs,
-    evidence: change.evidence,
+    evidence: serializeEvidenceForPrompt(change.evidence, options),
   }));
+
+export const getChangeSetForChangeIds = (
+  changeSet: ChangeSet,
+  changeIds: readonly string[],
+): ChangeSet => {
+  const changesById = new Map(
+    changeSet.changes.map((change) => [change.id, change]),
+  );
+  const changes = changeIds.flatMap((changeId) => {
+    const change = changesById.get(changeId);
+    return change ? [change] : [];
+  });
+
+  return {
+    ...changeSet,
+    changes,
+    fingerprint: getChangeSetFingerprint(changes),
+    counts: getCounts(changes),
+  };
+};
 
 export const getChangeLabels = (
   changeSet: ChangeSet,
@@ -618,6 +731,24 @@ export const getChangeLabels = (
     return `${change.id} ${getChangeTitle(change)}`;
   });
 };
+
+export const getEvidenceStats = (changeSet: ChangeSet) => ({
+  summaryOnlyCount: changeSet.changes.filter(
+    (change) => change.evidence.isSummaryOnly,
+  ).length,
+  truncatedCount: changeSet.changes.filter(
+    (change) => change.evidence.isTruncated,
+  ).length,
+  unavailableCount: changeSet.changes.filter(
+    (change) => change.evidence.isUnavailable,
+  ).length,
+  noisyCount: changeSet.changes.filter((change) => change.evidence.isNoisy)
+    .length,
+  evidenceChars: changeSet.changes.reduce(
+    (total, change) => total + getChangeEvidenceTextLength(change),
+    0,
+  ),
+});
 
 export const getPathspecsForChangeIds = (
   changeSet: ChangeSet,

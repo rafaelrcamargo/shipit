@@ -58,6 +58,17 @@ describe("resolveProviderConfig", () => {
     );
   });
 
+  test("skips blank API keys during fallback detection", () => {
+    process.env["OPENAI_API_KEY"] = "   ";
+    process.env["GOOGLE_GENERATIVE_AI_API_KEY"] = "google-key";
+
+    const resolved = resolveProviderConfig();
+    expect(resolved.id).toBe("google");
+    expect(resolved.modelId).toBe(
+      providerRegistryById["google"].defaultModelId,
+    );
+  });
+
   test("uses provider default model when provider is forced without model", () => {
     process.env["SHIPIT_PROVIDER"] = "openai";
     process.env["OPENAI_API_KEY"] = "openai-key";
@@ -127,6 +138,15 @@ describe("resolveProviderConfig", () => {
 
   test("fails when forced provider key is missing", () => {
     process.env["SHIPIT_PROVIDER"] = "openai";
+
+    expect(() => resolveProviderConfig()).toThrow(
+      "Missing API key for OpenAI. Set `OPENAI_API_KEY` before using `SHIPIT_PROVIDER=openai`.",
+    );
+  });
+
+  test("fails when forced provider key is blank", () => {
+    process.env["SHIPIT_PROVIDER"] = "openai";
+    process.env["OPENAI_API_KEY"] = "   ";
 
     expect(() => resolveProviderConfig()).toThrow(
       "Missing API key for OpenAI. Set `OPENAI_API_KEY` before using `SHIPIT_PROVIDER=openai`.",

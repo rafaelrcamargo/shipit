@@ -7,9 +7,6 @@ export interface PrTemplate {
   source: string;
 }
 
-/**
- * Standard GitHub PR template locations in order of precedence
- */
 const PR_TEMPLATE_PATHS = [
   ".github/PULL_REQUEST_TEMPLATE.md",
   ".github/pull_request_template.md",
@@ -17,9 +14,6 @@ const PR_TEMPLATE_PATHS = [
   "pull_request_template.md",
 ] as const;
 
-/**
- * Checks if a file exists in the git repository
- */
 async function fileExists(git: SimpleGit, path: string): Promise<boolean> {
   try {
     await git.show([`HEAD:${path}`]);
@@ -29,9 +23,6 @@ async function fileExists(git: SimpleGit, path: string): Promise<boolean> {
   }
 }
 
-/**
- * Reads a file from the git repository
- */
 async function readFile(git: SimpleGit, path: string): Promise<string> {
   try {
     const content = await git.show([`HEAD:${path}`]);
@@ -41,12 +32,8 @@ async function readFile(git: SimpleGit, path: string): Promise<string> {
   }
 }
 
-/**
- * Lists files in a directory from the git repository
- */
 async function listDirectory(git: SimpleGit, path: string): Promise<string[]> {
   try {
-    // Add trailing slash to ensure we list files within the directory
     const dirPath = path.endsWith("/") ? path : `${path}/`;
     const output = await git.raw(["ls-tree", "--name-only", "HEAD", dirPath]);
     return output
@@ -54,7 +41,6 @@ async function listDirectory(git: SimpleGit, path: string): Promise<string[]> {
       .map((file) => file.trim())
       .filter(Boolean)
       .map((file) => {
-        // Extract just the filename from the full path
         const parts = file.split("/");
         return parts[parts.length - 1] || "";
       })
@@ -64,13 +50,9 @@ async function listDirectory(git: SimpleGit, path: string): Promise<string[]> {
   }
 }
 
-/**
- * Finds and reads the first available PR template in the repository
- */
 export async function findPrTemplate(
   git: SimpleGit,
 ): Promise<PrTemplate | null> {
-  // Check standard single template locations
   for (const templatePath of PR_TEMPLATE_PATHS) {
     if (await fileExists(git, templatePath)) {
       try {
@@ -87,12 +69,10 @@ export async function findPrTemplate(
     }
   }
 
-  // Check for multiple templates in .github/PULL_REQUEST_TEMPLATE/ directory
   const templateDir = ".github/PULL_REQUEST_TEMPLATE";
   const templateFiles = await listDirectory(git, templateDir);
 
   if (templateFiles.length > 0) {
-    // Find the first .md file or use the first file if none are .md
     const mdFiles = templateFiles.filter((file) => file.endsWith(".md"));
     const targetFile = mdFiles.length > 0 ? mdFiles[0] : templateFiles[0];
     const fullPath = `${templateDir}/${targetFile}`;
