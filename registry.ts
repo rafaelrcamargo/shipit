@@ -16,18 +16,19 @@ type ProviderDefinition = {
 export const providerRegistryById = {
   openai: {
     providerLabel: "OpenAI",
-    defaultModelId: "gpt-5.1-codex-mini",
-    defaultModelName: "GPT-5.1 Codex Mini",
+    defaultModelId: "gpt-5.4-mini",
+    defaultModelName: "GPT-5.4 Mini",
     requiredApiKeyEnv: "OPENAI_API_KEY",
     createModel: (modelId: string) => openai(modelId),
     options: {
+      reasoningSummary: null,
       strictJsonSchema: true,
     },
   },
   google: {
     providerLabel: "Google",
-    defaultModelId: "gemini-3-flash-preview",
-    defaultModelName: "Gemini 3 Flash Preview",
+    defaultModelId: "gemini-3.5-flash",
+    defaultModelName: "Gemini 3.5 Flash",
     requiredApiKeyEnv: "GOOGLE_GENERATIVE_AI_API_KEY",
     createModel: (modelId: string) => google(modelId),
     options: {

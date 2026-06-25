@@ -3,7 +3,7 @@ import type { SimpleGit } from "simple-git";
 import type { Prompts } from "./prompts";
 import { getErrorMessage, pluralize } from "./utils";
 
-const isMissingTrackingBranchError = (error: unknown): boolean => {
+export const isMissingTrackingBranchError = (error: unknown): boolean => {
   const message = getErrorMessage(error).toLowerCase();
 
   return (
@@ -42,7 +42,6 @@ export async function handlePush({
       return;
     }
 
-    // Check if remote tracking branch exists
     let unpushedCommits;
     try {
       unpushedCommits = await git.log([`origin/${branch}..HEAD`, "--oneline"]);
