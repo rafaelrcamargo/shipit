@@ -1,10 +1,6 @@
-import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import { anthropic } from "@ai-sdk/anthropic";
-import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
 import { google } from "@ai-sdk/google";
-import type { GroqProviderOptions } from "@ai-sdk/groq";
 import { groq } from "@ai-sdk/groq";
-import type { OpenAIChatLanguageModelOptions } from "@ai-sdk/openai";
 import { openai } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
@@ -14,7 +10,7 @@ type ProviderDefinition = {
   defaultModelName: string;
   requiredApiKeyEnv: string;
   createModel: (modelId: string) => LanguageModel;
-  options: unknown;
+  options: Record<string, unknown>;
 };
 
 export const providerRegistryById = {
@@ -25,9 +21,8 @@ export const providerRegistryById = {
     requiredApiKeyEnv: "OPENAI_API_KEY",
     createModel: (modelId: string) => openai(modelId),
     options: {
-      reasoningEffort: "low",
       strictJsonSchema: true,
-    } satisfies OpenAIChatLanguageModelOptions,
+    },
   },
   google: {
     providerLabel: "Google",
@@ -36,11 +31,10 @@ export const providerRegistryById = {
     requiredApiKeyEnv: "GOOGLE_GENERATIVE_AI_API_KEY",
     createModel: (modelId: string) => google(modelId),
     options: {
-      thinkingConfig: { thinkingBudget: 0 },
       structuredOutputs: true,
       responseModalities: ["TEXT"],
       threshold: "OFF",
-    } satisfies GoogleGenerativeAIProviderOptions,
+    },
   },
   anthropic: {
     providerLabel: "Anthropic",
@@ -48,10 +42,7 @@ export const providerRegistryById = {
     defaultModelName: "Claude Haiku 4.5",
     requiredApiKeyEnv: "ANTHROPIC_API_KEY",
     createModel: (modelId: string) => anthropic(modelId),
-    options: {
-      thinking: { type: "disabled" },
-      sendReasoning: false,
-    } satisfies AnthropicProviderOptions,
+    options: {},
   },
   groq: {
     providerLabel: "Groq",
@@ -62,9 +53,9 @@ export const providerRegistryById = {
     options: {
       structuredOutputs: true,
       strictJsonSchema: true,
-    } satisfies GroqProviderOptions,
+    },
   },
-} as const satisfies Record<string, ProviderDefinition>;
+} satisfies Record<string, ProviderDefinition>;
 export const defaultGenerationProviderOptions = Object.fromEntries(
   Object.entries(providerRegistryById).map(([providerId, provider]) => [
     providerId,
