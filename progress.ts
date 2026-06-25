@@ -1,5 +1,4 @@
 import type { FinishReason, LanguageModelUsage } from "ai";
-import chalk from "chalk";
 
 import type { Prompts } from "./prompts";
 
@@ -36,6 +35,9 @@ const formatRequestPosition = ({
   requestIndex !== undefined && requestTotal !== undefined
     ? ` ${requestIndex}/${requestTotal}`
     : "";
+
+const formatStreamedElement = (completed: number) =>
+  `${completed} ${completed === 1 ? "group" : "groups"} ready`;
 
 const formatDuration = (durationMs: number | undefined) =>
   durationMs === undefined
@@ -90,7 +92,7 @@ export const createSpinnerProgressReporter = ({
   },
   streamedElement: (request, completed) => {
     spinner.message(
-      `${request.label}${formatRequestPosition(request)} ${chalk.dim(`${completed} streamed`)}`,
+      `${request.label}${formatRequestPosition(request)} (${formatStreamedElement(completed)})`,
     );
   },
   warning: (request, warningCount) => {

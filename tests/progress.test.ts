@@ -44,7 +44,9 @@ describe("AI progress reporting", () => {
 
     expect(spinnerMessages).toHaveLength(3);
     expect(spinnerMessages[0]).toBe("Planning commit groups calling model");
-    expect(spinnerMessages.at(-1)).toContain("2 streamed");
+    expect(spinnerMessages.at(-1)).toBe(
+      "Planning commit groups (2 groups ready)",
+    );
     expect(infoLogs).toEqual([]);
   });
 
