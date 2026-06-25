@@ -1,21 +1,20 @@
-import { generateText, Output } from "ai";
 import { CAC } from "cac";
 import chalk from "chalk";
 import { countTokens } from "gpt-tokenizer";
 import { simpleGit } from "simple-git";
 
 import {
-  responseSchema,
-  systemInstruction,
-  userInstruction,
-} from "./constants";
+  collectChangeSet,
+  getChangeLabels,
+  getChangeSetDrift,
+  getPathspecsForChangeIds,
+} from "./changes";
+import { createCommitPlanPrompt, generateCommitPlan } from "./commit-plan";
 import { formatAiError } from "./errors";
-import { collectUntrackedFileContexts } from "./model-input";
 import { version } from "./package.json" with { type: "json" };
 import { handlePullRequest } from "./pr";
 import { createPrompts } from "./prompts";
 import { handlePush } from "./push";
-import { defaultGenerationProviderOptions } from "./registry";
 import { resolveProviderConfig } from "./resolution";
 import {
   categorizeChangesCount,
@@ -103,21 +102,23 @@ async function main() {
     process.exit(1);
   }
 
-  const { files: _files, isClean, ...status } = await git.status(args);
+  const changeSet = await collectChangeSet(git, args);
 
-  if (isClean()) {
+  if (changeSet.allChanges.length === 0 && changeSet.conflicts.length === 0) {
     analysisSpinner.stop("Huh... squeaky clean. Nothing to see here.");
     outro("No changes? Time to get to work! 🙄");
     process.exit(0);
   }
 
-  if (status.conflicted && status.conflicted.length > 0) {
+  if (changeSet.conflicts.length > 0) {
     analysisSpinner.stop("⚠️ Merge conflicts detected");
     outro(
-      `Holy sh*t! Fix your ${status.conflicted.length} ${pluralize(
-        status.conflicted.length,
+      `Holy sh*t! Fix your ${changeSet.conflicts.length} ${pluralize(
+        changeSet.conflicts.length,
         "conflict",
-      )} first: ${status.conflicted.join(", ")}`,
+      )} first: ${changeSet.conflicts
+        .map((conflict) => conflict.path)
+        .join(", ")}`,
     );
     process.exit(1);
   }
@@ -125,18 +126,15 @@ async function main() {
   if (args.length > 0) {
     analysisSpinner.message("Sniffing out your specified paths...");
 
-    const stagedOutsideSelectedPaths = status.staged.some(
-      (stagedFile) =>
-        !args.some(
-          (selectedPath) =>
-            stagedFile === selectedPath ||
-            stagedFile.startsWith(`${selectedPath}/`),
-        ),
-    );
-
-    if (stagedOutsideSelectedPaths) {
+    if (changeSet.stagedOutsideSelectedChanges.length > 0) {
       analysisSpinner.stop("⚠️  Hold up! Mixed signals detected!");
-      outro(`You've got staged files outside your selected paths.
+      outro(`You've got staged changes outside your selected paths: ${changeSet.stagedOutsideSelectedChanges
+        .map((change) =>
+          change.fromPath
+            ? `${change.fromPath} -> ${change.path}`
+            : change.path,
+        )
+        .join(", ")}
 
 Pick a lane:
 - Unstage your files: \`git reset\`
@@ -146,32 +144,24 @@ Pick a lane:
     }
   }
 
-  const diffArgs = args.length > 0 ? ["HEAD", "--", ...args] : ["HEAD"];
-  const diffSummary = await git.diffSummary(diffArgs);
-  const diff = await git.diff(diffArgs);
-  const untrackedFileContexts = await collectUntrackedFileContexts({
-    filePaths: status.not_added ?? [],
-    selectedPaths: args,
-  });
+  if (changeSet.changes.length === 0) {
+    analysisSpinner.stop("No changes found in your selected paths.");
+    outro("No selected changes? Try a different path or run without paths.");
+    process.exit(0);
+  }
 
   analysisSpinner.stop(
-    `${categorizeChangesCount(diffSummary.files.length)} You've touched ${chalk.bold(
-      `${diffSummary.files.length} ${pluralize(
-        diffSummary.files.length,
-        "file",
+    `${categorizeChangesCount(changeSet.changes.length)} You've touched ${chalk.bold(
+      `${changeSet.changes.length} ${pluralize(
+        changeSet.changes.length,
+        "change",
       )}`,
     )}!`,
   );
 
-  const prompt = userInstruction(
-    status,
-    diffSummary,
-    diff,
-    options.appendix,
-    untrackedFileContexts,
+  const actualTokenCount = countTokens(
+    createCommitPlanPrompt(changeSet, options.appendix),
   );
-
-  const actualTokenCount = countTokens(prompt);
   const category = categorizeTokenCount(actualTokenCount);
 
   if (category.needsConfirmation && !options.unsafe) {
@@ -196,16 +186,12 @@ Pick a lane:
   const createdCommitHashes: string[] = [];
 
   try {
-    const { output } = await generateText({
+    const { commits: output } = await generateCommitPlan({
       model: aiConfig.model,
-      providerOptions: defaultGenerationProviderOptions,
-      output: Output.array({
-        element: responseSchema,
-        name: "commit",
-        description: "A focused commit group",
-      }),
-      system: systemInstruction,
-      prompt,
+      providerId: aiConfig.id,
+      modelId: aiConfig.modelId,
+      changeSet,
+      appendix: options.appendix,
     });
 
     commitSpinner.stop("Here come the goods...");
@@ -248,8 +234,11 @@ Pick a lane:
       log.message(chalk.gray("━━━"), { symbol: chalk.gray("│") });
       log.message(
         `Applies to these ${chalk.bold(
-          `${commit.files.length} ${pluralize(commit.files.length, "file")}`,
-        )}: ${chalk.dim(wrapText(commit.files.join(", ")))}`,
+          `${commit.changeIds.length} ${pluralize(
+            commit.changeIds.length,
+            "change",
+          )}`,
+        )}: ${chalk.dim(wrapText(getChangeLabels(changeSet, commit.changeIds).join(", ")))}`,
         { symbol: chalk.gray("│") },
       );
 
@@ -263,8 +252,32 @@ Pick a lane:
         if (commit.footers?.length)
           message += `\n\n${commit.footers.join("\n")}`;
 
+        const currentChangeSet = await collectChangeSet(git, args);
+        const drift = getChangeSetDrift(
+          changeSet,
+          currentChangeSet,
+          commit.changeIds,
+        );
+        if (drift.length > 0) {
+          log.error(
+            `Selected changes changed since AI analysis:\n${drift.join("\n")}`,
+          );
+          process.exit(1);
+        }
+
+        const stagePathspecs = getPathspecsForChangeIds(
+          changeSet,
+          commit.changeIds,
+          "stagePathspecs",
+        );
+        const commitPathspecs = getPathspecsForChangeIds(
+          changeSet,
+          commit.changeIds,
+          "commitPathspecs",
+        );
+
         try {
-          await git.add(commit.files);
+          await git.raw(["add", "-A", "--", ...stagePathspecs]);
         } catch (error) {
           log.error(
             `Dang, couldn't stage the files: ${getErrorMessage(error)}`,
@@ -275,7 +288,7 @@ Pick a lane:
         const stagedDiffForCommit = await git.diff([
           "--cached",
           "--",
-          ...commit.files,
+          ...commitPathspecs,
         ]);
         if (!stagedDiffForCommit.trim()) {
           log.info(
@@ -286,7 +299,7 @@ Pick a lane:
 
         try {
           const COMMIT_HASH_LENGTH = 7;
-          const commitResult = await git.commit(message, commit.files);
+          const commitResult = await git.commit(message, commitPathspecs);
           createdCommitHashes.push(commitResult.commit);
           log.success(
             `Committed to ${commitResult.branch}: ${chalk.bold(
