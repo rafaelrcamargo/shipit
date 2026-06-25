@@ -1,12 +1,13 @@
-import type { DefaultLogFields, DiffResult, ListLogLine } from "simple-git";
+import type { DefaultLogFields, ListLogLine } from "simple-git";
 import { z } from "zod";
 
-import type { UntrackedFileContext } from "./model-input";
+import type { ChangeSet } from "./changes";
+import { serializeChangeSetForPrompt } from "./changes";
 import type { PrTemplate } from "./template";
 
 export const systemInstruction = `# Expert \`git\` companion
 
-You are an expert AI assistant specializing in Git. Your sole task is to function as an advanced commit message generator. You will be given a parsed output of \`git status\` and a raw \`git diff\` output, you must analyze the changes and produce multiple small, focused atomic commit messages rather than grouping changes together.
+You are an expert AI assistant specializing in Git. Your sole task is to function as an advanced commit message generator. You will be given a canonical selected change set with local evidence, and you must analyze those changes and produce multiple small, focused atomic commit messages rather than grouping unrelated changes together.
 
 Your persona is that of a meticulous, senior software engineer who values clarity, precision, and maintainability above all else.
 
@@ -16,7 +17,7 @@ Your persona is that of a meticulous, senior software engineer who values clarit
 2. Explain the "Why," Not the "What": The commit description must explain the reason for the change. The code itself shows "what" was changed; the message should provide the context and motivation.
 3. Strict adherence to Conventional Commits: You must follow the Conventional Commits specification without deviation. This is not optional.
 4. No vague language: Avoid generic, unhelpful phrases like "refactoring the code" or "fixed some bugs." While you should use the \`refactor\` type for code restructuring, the description must be specific about the goal (e.g., \`refactor(auth): simplify token validation by removing redundant checks\`).
-5. Ensure full coverage: Every single file reported in the \`git status\` output (modified, new, deleted, etc.) must be accounted for in exactly one of the commit messages you generate.
+5. Ensure full coverage: Every single change ID reported in the selected change set must be accounted for in exactly one of the commit messages you generate.
 
 ---
 
@@ -130,58 +131,21 @@ Refs: #123
 5. NEVER repeat the \`type\` or \`scope\` in the description.
 6. Be really mindful about BREAKING CHANGES, only use them if the change is really CORE to the application.`;
 
-export const userInstruction = <Status>(
-  status: Status,
-  diffSummary: DiffResult,
-  diff: string,
+export const userInstruction = (
+  changeSet: ChangeSet,
   appendix?: string,
-  untrackedFiles: UntrackedFileContext[] = [],
 ) => `## Instructions
 
 You are an expert software developer tasked with writing a commit message for the following changes. Adhere to the **Conventional Commits** specification. The commit message should have a concise subject line and a more detailed body explaining the "what" and "why" of the changes.
 
 ## Git Context
 
-### Status
+### Selected Changes JSON
 
-\`\`\`json
-${JSON.stringify(status)}
-\`\`\`
+These are the canonical changes selected for this run. Every \`id\` in this list must appear in exactly one output \`changeIds\` array. Do not include any ID that is not in this list.
 
-### Diff Summary
-
-\`\`\`json
-${JSON.stringify(diffSummary)}
-\`\`\`
-
-### Diff
-
-\`\`\`diff
-${diff}
-\`\`\`${
-  untrackedFiles.length > 0
-    ? `
-
-### Untracked File Contents
-
-These files are new and may not appear in \`git diff HEAD\`. Treat them as part of the commit analysis:
-
-${untrackedFiles
-  .map((file) => {
-    const notes: string[] = [];
-    if (file.isBinary) notes.push("binary omitted");
-    if (file.isTruncated) notes.push("content truncated");
-
-    const noteSuffix = notes.length > 0 ? ` (${notes.join(", ")})` : "";
-
-    return `#### ${file.path}${noteSuffix}
-\`\`\`
-${file.content}
-\`\`\``;
-  })
-  .join("\n\n")}`
-    : ""
-}${
+${JSON.stringify(serializeChangeSetForPrompt(changeSet))}
+${
   appendix?.trim()
     ? `
 
@@ -196,10 +160,10 @@ ${appendix.trim()}`
 ## Commit Message:`;
 
 export const responseSchema = z.object({
-  files: z
+  changeIds: z
     .array(z.string().min(1))
     .min(1)
-    .describe("Non-empty array of file paths affected by this commit group"),
+    .describe("Non-empty array of change IDs affected by this commit group"),
   type: z
     .enum([
       "fix",
@@ -234,6 +198,8 @@ export const responseSchema = z.object({
       "Array of footer strings (e.g., 'BREAKING CHANGE: ...', 'Closes #123')",
     ),
 });
+
+export type CommitGroup = z.infer<typeof responseSchema>;
 
 export const prInstruction = (
   commits: readonly (DefaultLogFields & ListLogLine)[],
