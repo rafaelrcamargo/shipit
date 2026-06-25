@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { unlink } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -7,9 +7,16 @@ import { generateText, type LanguageModel, Output } from "ai";
 import chalk from "chalk";
 import type { SimpleGit } from "simple-git";
 
+import { PR_REASONING } from "./ai-settings";
 import { prInstruction, prSchema } from "./constants";
+import { collectRepoContext } from "./context";
 import { formatAiError } from "./errors";
+import {
+  createAiSdkProgressCallbacks,
+  createSpinnerProgressReporter,
+} from "./progress";
 import type { Prompts } from "./prompts";
+import { isMissingTrackingBranchError } from "./push";
 import { defaultGenerationProviderOptions } from "./registry";
 import { findPrTemplate } from "./template";
 import { getBaseBranch, getErrorMessage, pluralize, wrapText } from "./utils";
@@ -19,9 +26,39 @@ type PrHandlerParams = {
   log: Prompts["log"];
   spinner: Prompts["spinner"];
   confirm: Prompts["confirm"];
-  options: { [key: string]: boolean };
+  options: {
+    createPullRequest?: boolean;
+    context?: string;
+    ticketIds?: string[];
+  };
   model: LanguageModel;
 };
+
+type PullRequestLog = (args: string[]) => Promise<{ total: number }>;
+
+export type PullRequestPushState =
+  | { status: "up-to-date" }
+  | { status: "needs-push"; commitCount: number }
+  | { status: "needs-first-push" };
+
+export async function getPullRequestPushState(
+  log: PullRequestLog,
+  branch: string,
+): Promise<PullRequestPushState> {
+  try {
+    const unpushedCommits = await log([`origin/${branch}..HEAD`, "--oneline"]);
+
+    return unpushedCommits.total > 0
+      ? { status: "needs-push", commitCount: unpushedCommits.total }
+      : { status: "up-to-date" };
+  } catch (error) {
+    if (isMissingTrackingBranchError(error)) {
+      return { status: "needs-first-push" };
+    }
+
+    throw error;
+  }
+}
 
 export async function handlePullRequest({
   git,
@@ -62,7 +99,7 @@ export async function handlePullRequest({
     }
 
     const shouldCreatePR =
-      options["pr"] ||
+      options.createPullRequest ||
       (await confirm({
         message: `Want me to cook up a PR for ${
           branchCommits.total
@@ -75,15 +112,15 @@ export async function handlePullRequest({
     }
 
     try {
-      const unpushedCommits = await git.log([
-        `origin/${branch}..HEAD`,
-        "--oneline",
-      ]);
+      const pushState = await getPullRequestPushState(
+        (logArgs) => git.log(logArgs),
+        branch,
+      );
 
-      if (unpushedCommits.total > 0) {
+      if (pushState.status === "needs-push") {
         const shouldPush = await confirm({
-          message: `Push ${unpushedCommits.total} unpushed ${pluralize(
-            unpushedCommits.total,
+          message: `Push ${pushState.commitCount} unpushed ${pluralize(
+            pushState.commitCount,
             "commit",
           )} to origin/${branch}?`,
           initialValue: true,
@@ -95,14 +132,28 @@ export async function handlePullRequest({
 
         const pushSpinner = spinner();
         pushSpinner.start(
-          `Pushing ${unpushedCommits.total} ${pluralize(
-            unpushedCommits.total,
+          `Pushing ${pushState.commitCount} ${pluralize(
+            pushState.commitCount,
             "commit",
           )} to origin/${branch}...`,
         );
 
         await git.push("origin", branch);
         pushSpinner.stop("Pushed! Your code is now live and ready to PR");
+      } else if (pushState.status === "needs-first-push") {
+        const shouldPush = await confirm({
+          message: `This branch has not been pushed to origin/${branch}. Push it now?`,
+          initialValue: true,
+        });
+
+        if (shouldPush !== true) {
+          return;
+        }
+
+        const pushSpinner = spinner();
+        pushSpinner.start(`Pushing new branch to origin/${branch}...`);
+        await git.push("origin", branch, ["--set-upstream"]);
+        pushSpinner.stop(`Pushed new branch to origin/${branch}`);
       } else {
         log.info("Branch is already up to date with remote! 👍");
       }
@@ -116,9 +167,13 @@ export async function handlePullRequest({
     }
 
     const prSpinner = spinner();
-    prSpinner.start("Getting the AI to write your PR...");
+    prSpinner.start("Collecting PR context...");
+    const progress = createSpinnerProgressReporter({
+      spinner: prSpinner,
+      log,
+    });
 
-    // Check for PR template
+    prSpinner.message("Reading PR template...");
     const template = await findPrTemplate(git);
     if (template) {
       log.info(
@@ -126,7 +181,34 @@ export async function handlePullRequest({
       );
     }
 
-    const commits = await git.log([`origin/${baseBranch}..HEAD`]);
+    prSpinner.message("Collecting GitHub and Linear context...");
+    const repoContext = await collectRepoContext(git, {
+      baseBranch,
+      includeGithub: true,
+      ticketIds: options.ticketIds ?? [],
+    });
+    prSpinner.message(
+      `Writing PR with ${repoContext.commits.length} commit(s), ${repoContext.changedFiles.length} changed file(s), ${template ? "template found" : "no template"}...`,
+    );
+    const hasUnavailableLinearContext =
+      repoContext.linear.omittedReason &&
+      ![
+        "LINEAR_API_KEY is not configured",
+        "no Linear branch or issue identifiers found",
+        "no matching Linear issues found",
+      ].includes(repoContext.linear.omittedReason);
+    const unavailableContextCount =
+      repoContext.omittedReasons.length +
+      (repoContext.github.omittedReason ? 1 : 0) +
+      (hasUnavailableLinearContext ? 1 : 0);
+    if (unavailableContextCount > 0) {
+      log.info(
+        `Context budget: ${unavailableContextCount} optional context ${pluralize(
+          unavailableContextCount,
+          "item",
+        )} unavailable or compressed.`,
+      );
+    }
 
     let prInfo;
     try {
@@ -134,8 +216,28 @@ export async function handlePullRequest({
         model,
         providerOptions: defaultGenerationProviderOptions,
         output: Output.object({ schema: prSchema }),
-        prompt: prInstruction(commits.all, template || undefined),
+        prompt: prInstruction(
+          repoContext,
+          template || undefined,
+          options.context,
+        ),
+        reasoning: PR_REASONING,
+        telemetry: {
+          isEnabled: false,
+        },
+        ...createAiSdkProgressCallbacks(progress, {
+          phase: "pr",
+          label: "Writing PR description",
+          durable: true,
+        }),
       });
+      progress.warning(
+        {
+          phase: "pr",
+          label: "Writing PR description",
+        },
+        result.warnings?.length ?? 0,
+      );
       prInfo = result.output;
     } catch (error) {
       prSpinner.stop("Couldn't generate PR content.");
@@ -219,11 +321,7 @@ export async function handlePullRequest({
         )}/compare/${baseBranch}...${branch}`,
       );
     } finally {
-      try {
-        await unlink(tempFile);
-      } catch {
-        // Ignore cleanup errors
-      }
+      await rm(tempFile, { force: true }).catch(() => undefined);
     }
   } catch (error) {
     log.error(`Well sh*t, PR creation went sideways: ${formatAiError(error)}`);
