@@ -16,12 +16,17 @@ describe("CLI flags contract", () => {
     expect(stderr).toBe("");
 
     expect(stdout).toMatch(/--yes\b/);
-    expect(stdout).toMatch(/--force\b/);
-    expect(stdout).toMatch(/--unsafe\b/);
+    expect(stdout).toMatch(/--skip-token-check\b/);
     expect(stdout).toMatch(/--push\b/);
     expect(stdout).toMatch(/--pr\b/);
-    expect(stdout).toMatch(/--appendix\b/);
+    expect(stdout).toMatch(/--pull-request\b/);
+    expect(stdout).toMatch(/--ticket\b/);
+    expect(stdout).toMatch(/--context\b/);
+    expect(stdout).toMatch(/\bstatus\b/);
 
+    expect(stdout).not.toMatch(/--force\b/);
+    expect(stdout).not.toMatch(/--unsafe\b/);
+    expect(stdout).not.toMatch(/--appendix\b/);
     expect(stdout).not.toMatch(/--silent\b/);
   });
 });

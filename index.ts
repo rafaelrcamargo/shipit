@@ -5,17 +5,26 @@ import { simpleGit } from "simple-git";
 
 import {
   collectChangeSet,
+  getEvidenceStats,
   getChangeLabels,
   getChangeSetDrift,
   getPathspecsForChangeIds,
 } from "./changes";
+import {
+  normalizeCliOptions,
+  type NormalizedCliOptions,
+  type RawCliOptions,
+} from "./cli-options";
 import { createCommitPlanPrompt, generateCommitPlan } from "./commit-plan";
+import { collectRepoContext } from "./context";
 import { formatAiError } from "./errors";
 import { version } from "./package.json" with { type: "json" };
 import { handlePullRequest } from "./pr";
+import { createSpinnerProgressReporter } from "./progress";
 import { createPrompts } from "./prompts";
 import { handlePush } from "./push";
 import { resolveProviderConfig } from "./resolution";
+import { printStatus } from "./status";
 import {
   categorizeChangesCount,
   categorizeTokenCount,
@@ -26,37 +35,29 @@ import {
 } from "./utils";
 
 const cli = new CAC("shipit");
+const rawArgv = process.argv.slice(2);
+const isStatusCommand = rawArgv[0] === "status";
+
+cli.command("status", "Show resolved provider, API key, and context status");
 
 cli
-  .command(
-    "[...files]",
-    "Send changes to AI to categorize and generate commit messages",
-  )
-  .option("-y,--yes", "Automatically accept all commits, same as --force")
-  .option("-f,--force", "Automatically accept all commits, same as --yes")
-  .option("-u,--unsafe", "Skip token count verification")
+  .command("[...files]", "Plan commits from your Git changes")
+  .option("-y, --yes", "Automatically accept generated commit prompts")
+  .option("--skip-token-check", "Skip token count confirmation")
   .option("-p, --push", "Push the changes if any after processing all commits")
-  .option("--pr", "Create a pull request (works with or without new commits)")
   .option(
-    "-a,--appendix <text>",
-    "Add extra context to append to the commit generation prompt",
-  );
+    "--pr, --pull-request",
+    "Create a PR; without path args, works with or without new commits",
+  )
+  .option("-t, --ticket <id>", "Add a ticket ID, repeatable")
+  .option("--context <text>", "Add extra context to the commit and PR prompts");
 
 cli.help();
 cli.version(version);
 
 const { args, options } = cli.parse() as {
   args: string[];
-  options: {
-    // CLI options
-    yes?: boolean;
-    force?: boolean;
-    unsafe?: boolean;
-    push?: boolean;
-    pr?: boolean;
-    appendix?: string;
-
-    // CAC options
+  options: RawCliOptions & {
     help?: boolean;
     version?: boolean;
   };
@@ -64,9 +65,34 @@ const { args, options } = cli.parse() as {
 
 if (options.help || options.version) process.exit(0);
 
-const shouldAutoAccept = !!(options.force || options.yes);
+if (isStatusCommand) {
+  printStatus()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error(getErrorMessage(error));
+      process.exit(1);
+    });
+} else {
+  let cliOptions: NormalizedCliOptions;
+  try {
+    cliOptions = normalizeCliOptions(options, rawArgv);
+  } catch (error) {
+    console.error(getErrorMessage(error));
+    process.exit(1);
+  }
 
-async function main() {
+  const shouldAutoAccept = cliOptions.yes;
+
+  main(cliOptions, shouldAutoAccept).catch((error) => {
+    console.error(formatAiError(error));
+    process.exit(1);
+  });
+}
+
+async function main(
+  cliOptions: NormalizedCliOptions,
+  shouldAutoAccept: boolean,
+) {
   const { log, note, outro, spinner, confirm } = createPrompts({
     force: shouldAutoAccept,
   });
@@ -105,6 +131,26 @@ async function main() {
   const changeSet = await collectChangeSet(git, args);
 
   if (changeSet.allChanges.length === 0 && changeSet.conflicts.length === 0) {
+    if (cliOptions.createPullRequest) {
+      analysisSpinner.stop(
+        "Working tree is clean. Checking branch PR state...",
+      );
+      await handlePullRequest({
+        git,
+        log,
+        spinner,
+        confirm,
+        options: {
+          createPullRequest: cliOptions.createPullRequest,
+          context: cliOptions.context,
+          ticketIds: cliOptions.ticketIds,
+        },
+        model: aiConfig.model,
+      });
+      outro("No local changes to commit.");
+      return;
+    }
+
     analysisSpinner.stop("Huh... squeaky clean. Nothing to see here.");
     outro("No changes? Time to get to work! 🙄");
     process.exit(0);
@@ -159,12 +205,40 @@ Pick a lane:
     )}!`,
   );
 
+  const repoContext = await collectRepoContext(git, {
+    changeSet,
+    selectedPaths: args,
+    includeGithub: true,
+    ticketIds: cliOptions.ticketIds,
+  });
+
+  if (
+    repoContext.ticketIds.length > 0 &&
+    repoContext.linear.omittedReason === "LINEAR_API_KEY is not configured"
+  ) {
+    log.info(
+      "Ticket IDs will be included without Linear details. Set LINEAR_API_KEY to fetch ticket context.",
+    );
+  }
+
+  const evidenceStats = getEvidenceStats(changeSet);
+  if (
+    evidenceStats.summaryOnlyCount > 0 ||
+    evidenceStats.truncatedCount > 0 ||
+    evidenceStats.unavailableCount > 0 ||
+    evidenceStats.noisyCount > 0
+  ) {
+    log.info(
+      `Evidence: ${evidenceStats.evidenceChars} chars included, ${evidenceStats.summaryOnlyCount} summary-only, ${evidenceStats.truncatedCount} truncated, ${evidenceStats.unavailableCount} unavailable, ${evidenceStats.noisyCount} noisy/generated.`,
+    );
+  }
+
   const actualTokenCount = countTokens(
-    createCommitPlanPrompt(changeSet, options.appendix),
+    createCommitPlanPrompt(changeSet, repoContext, cliOptions.context),
   );
   const category = categorizeTokenCount(actualTokenCount);
 
-  if (category.needsConfirmation && !options.unsafe) {
+  if (category.needsConfirmation && !cliOptions.skipTokenCheck) {
     const shouldContinue = await confirm({
       message: `${chalk.bold(
         `${category.emoji ? `${category.emoji} ` : ""}Whoa there!`,
@@ -181,7 +255,11 @@ Pick a lane:
   }
 
   const commitSpinner = spinner();
-  commitSpinner.start("Crafting commit messages that don't suck...");
+  commitSpinner.start("Planning commits with AI...");
+  const commitProgress = createSpinnerProgressReporter({
+    spinner: commitSpinner,
+    log,
+  });
   let commitCount = 0;
   const createdCommitHashes: string[] = [];
 
@@ -191,7 +269,9 @@ Pick a lane:
       providerId: aiConfig.id,
       modelId: aiConfig.modelId,
       changeSet,
-      appendix: options.appendix,
+      repoContext,
+      context: cliOptions.context,
+      progress: commitProgress,
     });
 
     commitSpinner.stop("Here come the goods...");
@@ -326,7 +406,7 @@ Pick a lane:
     process.exit(1);
   }
 
-  if (options.push) {
+  if (cliOptions.push) {
     await handlePush({
       git,
       log,
@@ -336,15 +416,17 @@ Pick a lane:
     });
   }
 
-  if ((commitCount > 0 && !shouldAutoAccept) || options.pr) {
+  if ((commitCount > 0 && !shouldAutoAccept) || cliOptions.createPullRequest) {
     await handlePullRequest({
       git,
       log,
       spinner,
       confirm,
-      options: Object.fromEntries(
-        Object.entries(options).map(([key, value]) => [key, !!value]),
-      ),
+      options: {
+        createPullRequest: cliOptions.createPullRequest,
+        context: cliOptions.context,
+        ticketIds: cliOptions.ticketIds,
+      },
       model: aiConfig.model,
     });
   }
@@ -360,8 +442,3 @@ Pick a lane:
     outro("No commits? Time to get to work! 🙄");
   }
 }
-
-main().catch((error) => {
-  console.error(formatAiError(error));
-  process.exit(1);
-});
