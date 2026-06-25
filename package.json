@@ -1,10 +1,10 @@
 {
   "name": "shipit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "module": "index.ts",
   "scripts": {
-    "build": "DO_NOT_TRACK=1 bun build --compile --minify --sourcemap --bytecode ./index.ts --outfile ./build/shipit",
+    "build": "DO_NOT_TRACK=1 bun build --compile --minify ./index.ts --outfile ./build/shipit",
     "copy": "cp ./build/shipit /usr/local/bin/shipit",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
@@ -19,6 +19,7 @@
     "@ai-sdk/groq": "^4.0.0",
     "@ai-sdk/openai": "^4.0.0",
     "@clack/prompts": "^1.6.0",
+    "@linear/sdk": "^87.0.0",
     "@types/bun": "latest",
     "@types/node": "^25.9.4",
     "@types/stream-json": "^1.7.8",
