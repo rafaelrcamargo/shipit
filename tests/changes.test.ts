@@ -7,12 +7,14 @@ import { simpleGit } from "simple-git";
 
 import {
   collectChangeSet,
+  getChangeLabels,
   getChangeSetDrift,
   getPathspecsForChangeIds,
   isNoisyPath,
   parsePorcelainV2,
   validateCommitCoverage,
 } from "../changes";
+import { formatDisplayPath } from "../utils";
 
 async function createTempRepo() {
   const root = await mkdtemp(join(tmpdir(), "shipit-changes-"));
@@ -249,6 +251,43 @@ describe("collectChangeSet", () => {
           original.changes.map((change) => change.id),
         ),
       ).toEqual(["C001 modified: base.txt changed"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("formats display labels without changing collected paths", async () => {
+    const { root, git } = await createTempRepo();
+    const path = "apps/web/src/components/button/index.tsx";
+
+    try {
+      await mkdir(join(root, "apps/web/src/components/button"), {
+        recursive: true,
+      });
+      await writeFile(join(root, path), "export const value = 1;\n");
+      await git.add(path);
+      await git.commit("add nested file");
+      await writeFile(join(root, path), "export const value = 2;\n");
+
+      const original = await collectChangeSet(git, []);
+      await writeFile(join(root, path), "export const value = 3;\n");
+      const current = await collectChangeSet(git, []);
+      const changeIds = original.changes.map((change) => change.id);
+
+      expect(original.changes[0]?.path).toBe(path);
+      expect(getChangeLabels(original, changeIds)).toEqual([
+        `C001 modified: ${path}`,
+      ]);
+      expect(
+        getChangeLabels(original, changeIds, { formatPath: formatDisplayPath }),
+      ).toEqual(["C001 modified: apps/.../components/button/index.tsx"]);
+      expect(
+        getChangeSetDrift(original, current, changeIds, {
+          formatPath: formatDisplayPath,
+        }),
+      ).toEqual([
+        "C001 modified: apps/.../components/button/index.tsx changed",
+      ]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

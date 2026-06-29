@@ -661,6 +661,18 @@ type SerializeChangeSetOptions = {
   includeTextEvidence?: boolean;
 };
 
+type ChangeTitleOptions = {
+  formatPath?: (path: string) => string;
+};
+
+const formatChangePath = (
+  change: Pick<GitChange, "path" | "fromPath">,
+  { formatPath = (path: string) => path }: ChangeTitleOptions = {},
+) =>
+  change.fromPath
+    ? `${formatPath(change.fromPath)} -> ${formatPath(change.path)}`
+    : formatPath(change.path);
+
 const serializeEvidenceForPrompt = (
   evidence: ChangeEvidence,
   { includeTextEvidence = true }: SerializeChangeSetOptions = {},
@@ -719,6 +731,7 @@ export const getChangeSetForChangeIds = (
 export const getChangeLabels = (
   changeSet: ChangeSet,
   changeIds: readonly string[],
+  options: ChangeTitleOptions = {},
 ): string[] => {
   const changesById = new Map(
     changeSet.changes.map((change) => [change.id, change]),
@@ -728,7 +741,7 @@ export const getChangeLabels = (
     const change = changesById.get(changeId);
     if (!change) return changeId;
 
-    return `${change.id} ${getChangeTitle(change)}`;
+    return `${change.id} ${change.kind}: ${formatChangePath(change, options)}`;
   });
 };
 
@@ -835,6 +848,7 @@ export const getChangeSetDrift = (
   originalChangeSet: ChangeSet,
   currentChangeSet: ChangeSet,
   changeIds: readonly string[],
+  options: ChangeTitleOptions = {},
 ): string[] => {
   const originalChangesById = new Map(
     originalChangeSet.changes.map((change) => [change.id, change]),
@@ -853,12 +867,22 @@ export const getChangeSetDrift = (
 
     const currentChange = currentChangesByIdentity.get(originalChange.identity);
     if (!currentChange) {
-      drifted.push(`${changeId} ${getChangeTitle(originalChange)} is gone`);
+      drifted.push(
+        `${changeId} ${originalChange.kind}: ${formatChangePath(
+          originalChange,
+          options,
+        )} is gone`,
+      );
       continue;
     }
 
     if (currentChange.fingerprint !== originalChange.fingerprint) {
-      drifted.push(`${changeId} ${getChangeTitle(originalChange)} changed`);
+      drifted.push(
+        `${changeId} ${originalChange.kind}: ${formatChangePath(
+          originalChange,
+          options,
+        )} changed`,
+      );
     }
   }
 
