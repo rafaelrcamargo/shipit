@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  createSpinnerProgressReporter,
-  formatAiRequestResult,
-  formatUsage,
-} from "../progress";
+import { createSpinnerProgressReporter } from "../progress";
 
 const createHarness = () => {
   const spinnerMessages: string[] = [];
@@ -43,67 +39,37 @@ describe("AI progress reporting", () => {
     reporter.streamedElement(request, 2);
 
     expect(spinnerMessages).toHaveLength(3);
-    expect(spinnerMessages[0]).toBe("Planning commit groups calling model");
+    expect(spinnerMessages[0]).toBe("Planning commit groups");
     expect(spinnerMessages.at(-1)).toBe(
       "Planning commit groups (2 groups ready)",
     );
     expect(infoLogs).toEqual([]);
   });
 
-  test("logs durable request completions without prompt or output text", () => {
+  test("keeps request completions quiet", () => {
     const { reporter, spinnerMessages, infoLogs } = createHarness();
 
     reporter.requestEnd({
       phase: "planning",
       label: "Planning commit groups",
       durable: true,
-      finishReason: "stop",
-      usage: {
-        inputTokens: 10,
-        inputTokenDetails: {
-          noCacheTokens: undefined,
-          cacheReadTokens: undefined,
-          cacheWriteTokens: undefined,
-        },
-        outputTokens: 5,
-        outputTokenDetails: {
-          textTokens: undefined,
-          reasoningTokens: undefined,
-        },
-        totalTokens: 15,
-      },
-      durationMs: 1250,
     });
 
     expect(spinnerMessages).toEqual([]);
-    expect(infoLogs).toEqual([
-      "Planning commit groups done (1.3s; finish: stop; 10 in, 5 out, 15 total)",
-    ]);
+    expect(infoLogs).toEqual([]);
   });
 
-  test("formats request usage compactly", () => {
-    expect(
-      formatAiRequestResult({
+  test("logs provider warnings", () => {
+    const { reporter, infoLogs } = createHarness();
+
+    reporter.warning(
+      {
         phase: "message",
         label: "Writing commit 1",
-        finishReason: "stop",
-      }),
-    ).toBe("Writing commit 1 done (finish: stop)");
-    expect(
-      formatUsage({
-        inputTokens: undefined,
-        inputTokenDetails: {
-          noCacheTokens: undefined,
-          cacheReadTokens: undefined,
-          cacheWriteTokens: undefined,
-        },
-        outputTokens: 8,
-        outputTokenDetails: {
-          textTokens: undefined,
-          reasoningTokens: undefined,
-        },
-        totalTokens: 8,
-      }),
-    ).toBe("8 out, 8 total");
+      },
+      2,
+    );
+
+    expect(infoLogs).toEqual(["Writing commit 1: 2 provider warning(s)."]);
   });
 });

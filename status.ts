@@ -5,7 +5,7 @@ import { GITHUB_CONTEXT_DISABLE_ENV, isGithubContextDisabled } from "./context";
 import { version } from "./package.json" with { type: "json" };
 import { providerRegistryById } from "./registry";
 import { resolveProviderConfig } from "./resolution";
-import { getBaseBranch } from "./utils";
+import { formatDisplayPath, getBaseBranch } from "./utils";
 
 type ProviderId = keyof typeof providerRegistryById;
 
@@ -148,7 +148,7 @@ export const renderStatus = async (cwd = process.cwd()) => {
       title: "shipit",
       rows: [
         { label: "Version", value: version },
-        { label: "Working directory", value: cwd },
+        { label: "Working directory", value: formatDisplayPath(cwd) },
       ],
     },
     {

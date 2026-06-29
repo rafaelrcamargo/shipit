@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { realpath } from "node:fs/promises";
+
+import { formatDisplayPath } from "../utils";
 
 const secretEnvNames = [
   "OPENAI_API_KEY",
@@ -10,6 +13,9 @@ const secretEnvNames = [
   "SHIPIT_MODEL",
   "SHIPIT_DISABLE_GH",
 ] as const;
+
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const createEnv = (overrides: Record<string, string> = {}) => {
   const env: Record<string, string> = {};
@@ -62,6 +68,13 @@ describe("status command", () => {
     expect(stderr).toBe("");
     expect(stdout).toContain("AI Provider");
     expect(stdout).toContain("Item");
+    const cwd = await realpath(`${import.meta.dir}/..`);
+    expect(stdout).toMatch(
+      new RegExp(
+        `Working directory\\s+${escapeRegExp(formatDisplayPath(cwd))}`,
+      ),
+    );
+    expect(stdout).not.toContain(`Working directory  ${cwd}`);
     expect(stdout).toMatch(/Provider\s+OpenAI \(openai\)/);
     expect(stdout).toMatch(/Model\s+GPT-5\.4 Mini \(gpt-5\.4-mini\)/);
     expect(stdout).toMatch(/OPENAI_API_KEY\s+configured/);

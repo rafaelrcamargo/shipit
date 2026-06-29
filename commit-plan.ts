@@ -278,9 +278,7 @@ const summarizeOversizedGroup = async ({
     groupChangeSet,
     chunkEvidenceCharLimit,
   );
-  sharedParams.progress?.info(
-    `Commit ${groupIndex}: summarizing ${chunks.length} evidence chunk(s) before writing the message.`,
-  );
+  sharedParams.progress?.update(`Summarizing commit ${groupIndex} evidence...`);
 
   const summaries: string[] = [];
   for (const [index, chunk] of chunks.entries()) {
@@ -321,9 +319,7 @@ export const generateCommitPlan = async ({
   const expectedChangeIds = getChangedChangeIds(changeSet);
   const sharedParams = { model, providerId, modelId, repoContext, progress };
 
-  progress?.update(
-    `Planning commits for ${changeSet.changes.length} change(s)...`,
-  );
+  progress?.update("Planning commit groups...");
   let plannedGroups = await ai.planGroups({
     ...sharedParams,
     prompt,
@@ -337,7 +333,7 @@ export const generateCommitPlan = async ({
   let coverageIssue = validateCommitCoverage(plannedGroups, expectedChangeIds);
 
   if (!coverageIssue.ok) {
-    progress?.info("Repairing commit group coverage.");
+    progress?.update("Repairing commit group coverage...");
     plannedGroups = await ai.planGroups({
       ...sharedParams,
       prompt: createCoverageRepairPrompt(prompt, coverageIssue),
@@ -367,9 +363,7 @@ export const generateCommitPlan = async ({
       plannedGroup.changeIds,
     );
     const evidenceSize = getEvidenceSize(groupChangeSet);
-    progress?.update(
-      `Writing commit ${groupIndex}/${plannedGroups.length} (${plannedGroup.changeIds.length} change(s), ${evidenceSize} chars evidence)...`,
-    );
+    progress?.update(`Writing commit ${groupIndex}/${plannedGroups.length}...`);
     const chunkSummaries =
       evidenceSize > messageEvidenceCharLimit
         ? await summarizeOversizedGroup({

@@ -5,7 +5,6 @@ import { simpleGit } from "simple-git";
 
 import {
   collectChangeSet,
-  getEvidenceStats,
   getChangeLabels,
   getChangeSetDrift,
   getPathspecsForChangeIds,
@@ -29,6 +28,8 @@ import {
   categorizeChangesCount,
   categorizeTokenCount,
   decapitalizeFirstLetter,
+  formatDisplayPath,
+  formatDisplayPathChange,
   getErrorMessage,
   pluralize,
   wrapText,
@@ -163,7 +164,7 @@ async function main(
         changeSet.conflicts.length,
         "conflict",
       )} first: ${changeSet.conflicts
-        .map((conflict) => conflict.path)
+        .map((conflict) => formatDisplayPath(conflict.path))
         .join(", ")}`,
     );
     process.exit(1);
@@ -175,11 +176,7 @@ async function main(
     if (changeSet.stagedOutsideSelectedChanges.length > 0) {
       analysisSpinner.stop("⚠️  Hold up! Mixed signals detected!");
       outro(`You've got staged changes outside your selected paths: ${changeSet.stagedOutsideSelectedChanges
-        .map((change) =>
-          change.fromPath
-            ? `${change.fromPath} -> ${change.path}`
-            : change.path,
-        )
+        .map(formatDisplayPathChange)
         .join(", ")}
 
 Pick a lane:
@@ -218,18 +215,6 @@ Pick a lane:
   ) {
     log.info(
       "Ticket IDs will be included without Linear details. Set LINEAR_API_KEY to fetch ticket context.",
-    );
-  }
-
-  const evidenceStats = getEvidenceStats(changeSet);
-  if (
-    evidenceStats.summaryOnlyCount > 0 ||
-    evidenceStats.truncatedCount > 0 ||
-    evidenceStats.unavailableCount > 0 ||
-    evidenceStats.noisyCount > 0
-  ) {
-    log.info(
-      `Evidence: ${evidenceStats.evidenceChars} chars included, ${evidenceStats.summaryOnlyCount} summary-only, ${evidenceStats.truncatedCount} truncated, ${evidenceStats.unavailableCount} unavailable, ${evidenceStats.noisyCount} noisy/generated.`,
     );
   }
 
@@ -318,7 +303,13 @@ Pick a lane:
             commit.changeIds.length,
             "change",
           )}`,
-        )}: ${chalk.dim(wrapText(getChangeLabels(changeSet, commit.changeIds).join(", ")))}`,
+        )}: ${chalk.dim(
+          wrapText(
+            getChangeLabels(changeSet, commit.changeIds, {
+              formatPath: formatDisplayPath,
+            }).join(", "),
+          ),
+        )}`,
         { symbol: chalk.gray("│") },
       );
 
@@ -337,6 +328,7 @@ Pick a lane:
           changeSet,
           currentChangeSet,
           commit.changeIds,
+          { formatPath: formatDisplayPath },
         );
         if (drift.length > 0) {
           log.error(

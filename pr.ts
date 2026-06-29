@@ -19,7 +19,13 @@ import type { Prompts } from "./prompts";
 import { isMissingTrackingBranchError } from "./push";
 import { defaultGenerationProviderOptions } from "./registry";
 import { findPrTemplate } from "./template";
-import { getBaseBranch, getErrorMessage, pluralize, wrapText } from "./utils";
+import {
+  formatDisplayPath,
+  getBaseBranch,
+  getErrorMessage,
+  pluralize,
+  wrapText,
+} from "./utils";
 
 type PrHandlerParams = {
   git: SimpleGit;
@@ -177,7 +183,9 @@ export async function handlePullRequest({
     const template = await findPrTemplate(git);
     if (template) {
       log.info(
-        `Found PR template at ${chalk.cyan(template.source)} - following repository guidelines! 📝`,
+        `Found PR template at ${chalk.cyan(
+          formatDisplayPath(template.source),
+        )} - following repository guidelines! 📝`,
       );
     }
 
