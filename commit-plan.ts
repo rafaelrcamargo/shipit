@@ -363,7 +363,9 @@ export const generateCommitPlan = async ({
       plannedGroup.changeIds,
     );
     const evidenceSize = getEvidenceSize(groupChangeSet);
-    progress?.update(`Writing commit ${groupIndex}/${plannedGroups.length}...`);
+    progress?.update(
+      `Writing commits ${groupIndex}/${plannedGroups.length}...`,
+    );
     const chunkSummaries =
       evidenceSize > messageEvidenceCharLimit
         ? await summarizeOversizedGroup({
@@ -383,7 +385,7 @@ export const generateCommitPlan = async ({
       chunkSummaries,
       request: {
         phase: "message",
-        label: `Writing commit ${groupIndex}`,
+        label: "Writing commits",
         requestIndex: groupIndex,
         requestTotal: plannedGroups.length,
       },

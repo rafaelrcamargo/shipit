@@ -64,17 +64,33 @@ describe("generateCommitPlan", () => {
       change("C002", "src/b.ts"),
     ]);
     const messageRequests: string[][] = [];
+    const progressMessages: string[] = [];
 
     const result = await generateCommitPlan({
       ...baseParams,
       changeSet,
+      progress: {
+        update: (message) => progressMessages.push(message),
+        info: () => {},
+        requestStart: () => {},
+        requestEnd: () => {},
+        streamedElement: () => {},
+        warning: () => {},
+      },
       ai: {
         planGroups: async () => [
           { changeIds: ["C001"], summary: "update a" },
           { changeIds: ["C002"], summary: "update b" },
         ],
-        writeMessage: async ({ changeSet: groupChangeSet, plannedGroup }) => {
+        writeMessage: async ({
+          changeSet: groupChangeSet,
+          plannedGroup,
+          request,
+        }) => {
           messageRequests.push(groupChangeSet.changes.map((item) => item.id));
+          progressMessages.push(
+            `${request.label} ${request.requestIndex}/${request.requestTotal}`,
+          );
           return message(plannedGroup.summary);
         },
       },
@@ -85,6 +101,9 @@ describe("generateCommitPlan", () => {
       expect.objectContaining({ changeIds: ["C001"], description: "update a" }),
       expect.objectContaining({ changeIds: ["C002"], description: "update b" }),
     ]);
+    expect(progressMessages).toContain("Writing commits 1/2...");
+    expect(progressMessages).toContain("Writing commits 1/2");
+    expect(progressMessages).not.toContain("Writing commit 1 1/2");
   });
 
   test("repairs invalid planning coverage once", async () => {
