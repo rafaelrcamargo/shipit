@@ -14,7 +14,7 @@ import {
   type NormalizedCliOptions,
   type RawCliOptions,
 } from "./cli-options";
-import { createCommitPlanPrompt, generateCommitPlan } from "./commit-plan";
+import { createCommitPromptPreview, generateCommitPlan } from "./commit-plan";
 import { collectRepoContext } from "./context";
 import { formatAiError } from "./errors";
 import { version } from "./package.json" with { type: "json" };
@@ -219,7 +219,7 @@ Pick a lane:
   }
 
   const actualTokenCount = countTokens(
-    createCommitPlanPrompt(changeSet, repoContext, cliOptions.context),
+    createCommitPromptPreview(changeSet, repoContext, cliOptions.context),
   );
   const category = categorizeTokenCount(actualTokenCount);
 
@@ -240,7 +240,7 @@ Pick a lane:
   }
 
   const commitSpinner = spinner();
-  commitSpinner.start("Planning commits with AI...");
+  commitSpinner.start("Generating commits with AI...");
   const commitProgress = createSpinnerProgressReporter({
     spinner: commitSpinner,
     log,

@@ -82,6 +82,7 @@ type CommitPlanAiClient = {
 
 const MESSAGE_EVIDENCE_CHAR_LIMIT = 60000;
 const CHUNK_EVIDENCE_CHAR_LIMIT = 30000;
+const DIRECT_COMMIT_CHANGE_LIMIT = 5;
 
 export const createCommitPlanPrompt = (
   changeSet: ChangeSet,
@@ -94,6 +95,37 @@ const getEvidenceSize = (changeSet: ChangeSet): number =>
     (total, change) => total + getChangeEvidenceTextLength(change),
     0,
   );
+
+const shouldWriteCommitDirectly = (
+  changeSet: ChangeSet,
+  messageEvidenceCharLimit: number,
+): boolean =>
+  changeSet.changes.length <= DIRECT_COMMIT_CHANGE_LIMIT &&
+  getEvidenceSize(changeSet) <= messageEvidenceCharLimit;
+
+const createDirectCommitGroup = (changeSet: ChangeSet): CommitPlanGroup => ({
+  changeIds: getChangedChangeIds(changeSet),
+  summary: "selected changes fit a single commit",
+});
+
+export const createCommitPromptPreview = (
+  changeSet: ChangeSet,
+  repoContext?: RepoContext,
+  context?: string,
+  {
+    messageEvidenceCharLimit = MESSAGE_EVIDENCE_CHAR_LIMIT,
+  }: {
+    messageEvidenceCharLimit?: number;
+  } = {},
+): string =>
+  shouldWriteCommitDirectly(changeSet, messageEvidenceCharLimit)
+    ? commitMessageInstruction(
+        changeSet,
+        createDirectCommitGroup(changeSet),
+        repoContext,
+        context,
+      )
+    : createCommitPlanPrompt(changeSet, repoContext, context);
 
 const defaultCommitPlanAi: CommitPlanAiClient = {
   planGroups: async ({
@@ -315,9 +347,35 @@ export const generateCommitPlan = async ({
   ai: aiOverrides = {},
 }: GenerateCommitPlanParams): Promise<GenerateCommitPlanResult> => {
   const ai = { ...defaultCommitPlanAi, ...aiOverrides };
-  const prompt = createCommitPlanPrompt(changeSet, repoContext, context);
   const expectedChangeIds = getChangedChangeIds(changeSet);
   const sharedParams = { model, providerId, modelId, repoContext, progress };
+
+  if (shouldWriteCommitDirectly(changeSet, messageEvidenceCharLimit)) {
+    const plannedGroup = createDirectCommitGroup(changeSet);
+
+    progress?.update("Writing commit...");
+    const message = await ai.writeMessage({
+      ...sharedParams,
+      changeSet,
+      plannedGroup,
+      context,
+      request: {
+        phase: "message",
+        label: "Writing commit",
+      },
+    });
+
+    return {
+      commits: [
+        {
+          changeIds: expectedChangeIds,
+          ...message,
+        },
+      ],
+    };
+  }
+
+  const prompt = createCommitPlanPrompt(changeSet, repoContext, context);
 
   progress?.update("Planning commit groups...");
   let plannedGroups = await ai.planGroups({

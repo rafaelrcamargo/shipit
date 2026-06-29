@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { ChangeSet, GitChange } from "../changes";
-import { generateCommitPlan } from "../commit-plan";
+import { createCommitPromptPreview, generateCommitPlan } from "../commit-plan";
 import type { CommitMessage, CommitPlanGroup } from "../constants";
 
 const change = (id: string, path: string, diffLength = 100): GitChange => ({
@@ -58,10 +58,60 @@ const baseParams = {
 };
 
 describe("generateCommitPlan", () => {
+  test("writes one commit directly for small diffs", async () => {
+    const changeSet = createChangeSet([
+      change("C001", "src/a.ts"),
+      change("C002", "src/b.ts"),
+    ]);
+    const progressMessages: string[] = [];
+    const messageRequests: string[][] = [];
+    let plannedGroup: CommitPlanGroup | undefined;
+
+    const result = await generateCommitPlan({
+      ...baseParams,
+      changeSet,
+      progress: {
+        update: (message) => progressMessages.push(message),
+        info: () => {},
+        requestStart: () => {},
+        requestEnd: () => {},
+        streamedElement: () => {},
+        warning: () => {},
+      },
+      ai: {
+        planGroups: async () => {
+          throw new Error("small diffs should not be planned");
+        },
+        writeMessage: async ({
+          changeSet: groupChangeSet,
+          plannedGroup: group,
+        }) => {
+          plannedGroup = group;
+          messageRequests.push(groupChangeSet.changes.map((item) => item.id));
+          return message("write small diff");
+        },
+      },
+    });
+
+    expect(progressMessages).toEqual(["Writing commit..."]);
+    expect(messageRequests).toEqual([["C001", "C002"]]);
+    expect(plannedGroup?.changeIds).toEqual(["C001", "C002"]);
+    expect(result.commits).toEqual([
+      expect.objectContaining({
+        changeIds: ["C001", "C002"],
+        description: "write small diff",
+      }),
+    ]);
+  });
+
   test("plans groups first and writes messages with group-only changes", async () => {
     const changeSet = createChangeSet([
       change("C001", "src/a.ts"),
       change("C002", "src/b.ts"),
+      change("C003", "src/c.ts"),
+      change("C004", "src/d.ts"),
+      change("C005", "src/e.ts"),
+      change("C006", "src/f.ts"),
     ]);
     const messageRequests: string[][] = [];
     const progressMessages: string[] = [];
@@ -79,8 +129,11 @@ describe("generateCommitPlan", () => {
       },
       ai: {
         planGroups: async () => [
-          { changeIds: ["C001"], summary: "update a" },
-          { changeIds: ["C002"], summary: "update b" },
+          { changeIds: ["C001", "C002", "C003"], summary: "update first set" },
+          {
+            changeIds: ["C004", "C005", "C006"],
+            summary: "update second set",
+          },
         ],
         writeMessage: async ({
           changeSet: groupChangeSet,
@@ -96,10 +149,19 @@ describe("generateCommitPlan", () => {
       },
     });
 
-    expect(messageRequests).toEqual([["C001"], ["C002"]]);
+    expect(messageRequests).toEqual([
+      ["C001", "C002", "C003"],
+      ["C004", "C005", "C006"],
+    ]);
     expect(result.commits).toEqual([
-      expect.objectContaining({ changeIds: ["C001"], description: "update a" }),
-      expect.objectContaining({ changeIds: ["C002"], description: "update b" }),
+      expect.objectContaining({
+        changeIds: ["C001", "C002", "C003"],
+        description: "update first set",
+      }),
+      expect.objectContaining({
+        changeIds: ["C004", "C005", "C006"],
+        description: "update second set",
+      }),
     ]);
     expect(progressMessages).toContain("Writing commits 1/2...");
     expect(progressMessages).toContain("Writing commits 1/2");
@@ -110,10 +172,19 @@ describe("generateCommitPlan", () => {
     const changeSet = createChangeSet([
       change("C001", "src/a.ts"),
       change("C002", "src/b.ts"),
+      change("C003", "src/c.ts"),
+      change("C004", "src/d.ts"),
+      change("C005", "src/e.ts"),
+      change("C006", "src/f.ts"),
     ]);
     const plannedResponses: CommitPlanGroup[][] = [
       [{ changeIds: ["C001"], summary: "partial" }],
-      [{ changeIds: ["C001", "C002"], summary: "complete" }],
+      [
+        {
+          changeIds: ["C001", "C002", "C003", "C004", "C005", "C006"],
+          summary: "complete",
+        },
+      ],
     ];
 
     const result = await generateCommitPlan({
@@ -126,13 +197,24 @@ describe("generateCommitPlan", () => {
     });
 
     expect(result.commits).toHaveLength(1);
-    expect(result.commits[0]?.changeIds).toEqual(["C001", "C002"]);
+    expect(result.commits[0]?.changeIds).toEqual([
+      "C001",
+      "C002",
+      "C003",
+      "C004",
+      "C005",
+      "C006",
+    ]);
   });
 
   test("fails after one unsuccessful coverage repair", async () => {
     const changeSet = createChangeSet([
       change("C001", "src/a.ts"),
       change("C002", "src/b.ts"),
+      change("C003", "src/c.ts"),
+      change("C004", "src/d.ts"),
+      change("C005", "src/e.ts"),
+      change("C006", "src/f.ts"),
     ]);
 
     await expect(
@@ -184,5 +266,41 @@ describe("generateCommitPlan", () => {
       "summary 3",
     ]);
     expect(result.commits[0]?.changeIds).toEqual(["C001", "C002", "C003"]);
+  });
+});
+
+describe("createCommitPromptPreview", () => {
+  test("uses the direct commit prompt for small diffs", () => {
+    const prompt = createCommitPromptPreview(
+      createChangeSet([change("C001", "src/a.ts")]),
+    );
+
+    expect(prompt).toContain("## Commit Message:");
+    expect(prompt).toContain('"diff":"');
+    expect(prompt).not.toContain("## Commit Groups:");
+  });
+
+  test("uses the planning prompt for larger or evidence-heavy diffs", () => {
+    const largePrompt = createCommitPromptPreview(
+      createChangeSet([
+        change("C001", "src/a.ts"),
+        change("C002", "src/b.ts"),
+        change("C003", "src/c.ts"),
+        change("C004", "src/d.ts"),
+        change("C005", "src/e.ts"),
+        change("C006", "src/f.ts"),
+      ]),
+    );
+    const evidenceHeavyPrompt = createCommitPromptPreview(
+      createChangeSet([change("C001", "src/a.ts", 1000)]),
+      undefined,
+      undefined,
+      { messageEvidenceCharLimit: 500 },
+    );
+
+    expect(largePrompt).toContain("## Commit Groups:");
+    expect(largePrompt).not.toContain('"diff":"');
+    expect(evidenceHeavyPrompt).toContain("## Commit Groups:");
+    expect(evidenceHeavyPrompt).not.toContain('"diff":"');
   });
 });
