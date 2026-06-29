@@ -53,6 +53,31 @@ export const pluralize = (
   return plural || `${singular}s`;
 };
 
+export const formatDisplayPath = (path: string): string => {
+  const normalized = path.replace(/\\/g, "/");
+  const isAbsolute = normalized.startsWith("/");
+  const segments = normalized.split("/").filter(Boolean);
+
+  if (segments.length <= 4) return normalized;
+
+  if (isAbsolute) {
+    return `/${segments[0]}/.../${segments.slice(-2).join("/")}`;
+  }
+
+  return `${segments[0]}/.../${segments.slice(-3).join("/")}`;
+};
+
+export const formatDisplayPathChange = ({
+  path,
+  fromPath,
+}: {
+  path: string;
+  fromPath?: string;
+}): string =>
+  fromPath
+    ? `${formatDisplayPath(fromPath)} -> ${formatDisplayPath(path)}`
+    : formatDisplayPath(path);
+
 export const wrapText = (text: string, maxWidth: number = 80): string => {
   const words = text.split(" ");
   const lines: string[] = [];
