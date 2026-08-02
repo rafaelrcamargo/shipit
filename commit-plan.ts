@@ -140,7 +140,7 @@ const defaultCommitPlanAi: CommitPlanAiClient = {
   }) => {
     const reasoningPhase: CommitReasoningPhase =
       request.phase === "repair" ? "repair" : "planning";
-    const result = streamText({
+    const generationOptions = {
       model,
       providerOptions: defaultGenerationProviderOptions,
       output: Output.array({
@@ -163,7 +163,15 @@ const defaultCommitPlanAi: CommitPlanAiClient = {
         isEnabled: false,
       },
       ...createAiSdkProgressCallbacks(progress, request),
-    });
+    };
+
+    if (providerId === "groq") {
+      const result = await generateText(generationOptions);
+      progress?.warning(request, result.warnings?.length ?? 0);
+      return result.output;
+    }
+
+    const result = streamText(generationOptions);
 
     let streamedGroups = 0;
     for await (const streamedGroup of result.elementStream) {

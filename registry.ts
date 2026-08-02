@@ -16,8 +16,8 @@ type ProviderDefinition = {
 export const providerRegistryById = {
   openai: {
     providerLabel: "OpenAI",
-    defaultModelId: "gpt-5.4-mini",
-    defaultModelName: "GPT-5.4 Mini",
+    defaultModelId: "gpt-5.6-luna",
+    defaultModelName: "GPT-5.6 Luna",
     requiredApiKeyEnv: "OPENAI_API_KEY",
     createModel: (modelId: string) => openai(modelId),
     options: {
@@ -27,8 +27,8 @@ export const providerRegistryById = {
   },
   google: {
     providerLabel: "Google",
-    defaultModelId: "gemini-3.5-flash",
-    defaultModelName: "Gemini 3.5 Flash",
+    defaultModelId: "gemini-3.6-flash",
+    defaultModelName: "Gemini 3.6 Flash",
     requiredApiKeyEnv: "GOOGLE_GENERATIVE_AI_API_KEY",
     createModel: (modelId: string) => google(modelId),
     options: {
@@ -47,8 +47,8 @@ export const providerRegistryById = {
   },
   groq: {
     providerLabel: "Groq",
-    defaultModelId: "moonshotai/kimi-k2-instruct-0905",
-    defaultModelName: "Kimi K2 0905",
+    defaultModelId: "openai/gpt-oss-120b",
+    defaultModelName: "GPT-OSS 120B",
     requiredApiKeyEnv: "GROQ_API_KEY",
     createModel: (modelId: string) => groq(modelId),
     options: {

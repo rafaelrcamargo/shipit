@@ -60,7 +60,7 @@ describe("status command", () => {
         OPENAI_API_KEY: "sk-secret-openai",
         LINEAR_API_KEY: "lin-secret",
         SHIPIT_PROVIDER: "openai",
-        SHIPIT_MODEL: "gpt-5.4-mini",
+        SHIPIT_MODEL: "gpt-5.6-luna",
       }),
     );
 
@@ -76,7 +76,7 @@ describe("status command", () => {
     );
     expect(stdout).not.toContain(`Working directory  ${cwd}`);
     expect(stdout).toMatch(/Provider\s+OpenAI \(openai\)/);
-    expect(stdout).toMatch(/Model\s+GPT-5\.4 Mini \(gpt-5\.4-mini\)/);
+    expect(stdout).toMatch(/Model\s+GPT-5\.6 Luna \(gpt-5\.6-luna\)/);
     expect(stdout).toMatch(/OPENAI_API_KEY\s+configured/);
     expect(stdout).toMatch(/LINEAR_API_KEY\s+configured/);
     expect(stdout).toMatch(/SHIPIT_PROVIDER\s+openai/);

@@ -94,7 +94,7 @@ export const resolveProviderConfig = (): ResolvedProviderConfig => {
 
   if (modelOverrideRaw !== undefined && !providerOverride) {
     throw new Error(
-      `\`${MODEL_ENV}\` requires \`${PROVIDER_ENV}\` to be set. Example: \`${PROVIDER_ENV}=openai ${MODEL_ENV}=gpt-5.4-mini\`.`,
+      `\`${MODEL_ENV}\` requires \`${PROVIDER_ENV}\` to be set. Example: \`${PROVIDER_ENV}=openai ${MODEL_ENV}=gpt-5.6-luna\`.`,
     );
   }
 
