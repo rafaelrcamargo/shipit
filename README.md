@@ -11,10 +11,10 @@ Staring at a messy diff and about to type `fix stuff` again? `shipit` looks at y
 > [!IMPORTANT]
 > This tool requires one of the following AI provider API keys to be set as an environment variable:
 >
-> - **GPT-5.4 Mini (OpenAI)**: `OPENAI_API_KEY` - Get yours at <https://platform.openai.com/api-keys>
-> - **Gemini 3.5 Flash (Google)**: `GOOGLE_GENERATIVE_AI_API_KEY` - Get yours at <https://aistudio.google.com/app/apikey>
+> - **GPT-5.6 Luna (OpenAI)**: `OPENAI_API_KEY` - Get yours at <https://platform.openai.com/api-keys>
+> - **Gemini 3.6 Flash (Google)**: `GOOGLE_GENERATIVE_AI_API_KEY` - Get yours at <https://aistudio.google.com/app/apikey>
 > - **Claude Haiku 4.5 (Anthropic)**: `ANTHROPIC_API_KEY` - Get yours at <https://console.anthropic.com/>
-> - **Kimi K2 0905 (Groq)**: `GROQ_API_KEY` - Get yours at <https://console.groq.com/keys>
+> - **GPT-OSS 120B (Groq)**: `GROQ_API_KEY` - Get yours at <https://console.groq.com/keys>
 >
 > By default, the tool auto-detects the first available API key in the order above. You can override this using `SHIPIT_PROVIDER` and `SHIPIT_MODEL`.
 
@@ -39,7 +39,7 @@ export SHIPIT_DISABLE_GH=1
 
 # Optional: force provider/model selection instead of key-order fallback
 export SHIPIT_PROVIDER="openai" # google | openai | anthropic | groq
-export SHIPIT_MODEL="gpt-5.4-mini"
+export SHIPIT_MODEL="gpt-5.6-luna"
 ```
 
 ### Provider and Model Overrides
@@ -75,7 +75,7 @@ Set these once in your shell profile so they apply to every terminal.
 ```bash
 export OPENAI_API_KEY="..."
 export SHIPIT_PROVIDER="openai"
-export SHIPIT_MODEL="gpt-5.4-mini"
+export SHIPIT_MODEL="gpt-5.6-luna"
 ```
 
 #### bash (`~/.bashrc`)
@@ -83,7 +83,7 @@ export SHIPIT_MODEL="gpt-5.4-mini"
 ```bash
 export OPENAI_API_KEY="..."
 export SHIPIT_PROVIDER="openai"
-export SHIPIT_MODEL="gpt-5.4-mini"
+export SHIPIT_MODEL="gpt-5.6-luna"
 ```
 
 #### fish (`config.fish`)
@@ -91,7 +91,7 @@ export SHIPIT_MODEL="gpt-5.4-mini"
 ```fish
 set -Ux OPENAI_API_KEY "..."
 set -Ux SHIPIT_PROVIDER "openai"
-set -Ux SHIPIT_MODEL "gpt-5.4-mini"
+set -Ux SHIPIT_MODEL "gpt-5.6-luna"
 ```
 
 #### PowerShell (`$PROFILE`)
@@ -99,7 +99,7 @@ set -Ux SHIPIT_MODEL "gpt-5.4-mini"
 ```powershell
 $env:OPENAI_API_KEY="..."
 $env:SHIPIT_PROVIDER="openai"
-$env:SHIPIT_MODEL="gpt-5.4-mini"
+$env:SHIPIT_MODEL="gpt-5.6-luna"
 ```
 
 Reload your shell after editing profile files:
