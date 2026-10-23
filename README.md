@@ -200,6 +200,16 @@ When a template is found, you'll see: `Found PR template at {path} - following r
 > To generate pull requests with `--pr`, you'll need the [GitHub CLI](https://cli.github.com/) installed and authenticated. For private repositories, ensure you have the necessary permissions.
 > When path args are provided, `shipit --pr <path>` only acts on that selected path and exits without creating a PR if that path has no changes.
 
+### PR Review Media
+
+When the installed GitHub CLI exposes `gh pr create --attach`, `shipit` can include changed screenshots or recordings in a generated PR. It gives the PR writer only supported, non-empty media files from the branch diff, asks it to select files that materially help review, and shows the selection before confirmation. Product assets, icons, logos, fixtures, and source artwork should not be attached merely because they changed.
+
+Selected images and videos are referenced at the relevant point in the PR body and passed to repeatable `--attach` flags. GitHub uploads them and rewrites the local markdown references to hosted attachment URLs. Because GitHub CLI does not support `--attach` with `--web`, a PR with selected media is created directly after confirmation; PRs without selected media keep the existing browser flow.
+
+Older GitHub CLI releases remain supported. `shipit` detects the flag from the installed command instead of relying on a version number and generates a text-only PR when attachment support is unavailable.
+
+See [GitHub CLI media attachments research](docs/gh-cli-attachments-research.md) for the current preview build, supported formats, authorization requirements, and partial-failure behavior.
+
 <details>
 <summary>
 

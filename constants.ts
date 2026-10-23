@@ -318,7 +318,34 @@ export const prInstruction = (
   repoContext: RepoContext,
   template?: PrTemplate,
   context?: string,
+  attachmentCandidates: string[] = [],
 ) => {
+  const attachmentInstructions =
+    attachmentCandidates.length > 0
+      ? `
+
+## Review Media Attachments
+
+The GitHub CLI used for this run can upload local images and videos into the PR body. These are the only eligible repository-relative files:
+
+${JSON.stringify(attachmentCandidates)}
+
+Use an attachment only when its path and the repository context establish that it is review evidence, such as a screenshot or recording of changed behavior. Do not attach product assets, icons, logos, fixtures, source artwork, or other media merely because the file changed.
+
+For every file you select:
+- Copy its exact path into the output \`attachments\` array once.
+- Reference that same path in the body with ordinary markdown image syntax, such as \`![Specific description](./path.png)\`.
+- Put a path containing spaces inside angle brackets, such as \`![Specific description](<./path with spaces.png>)\`.
+- Put a video reference in its own paragraph so GitHub can rewrite it as an embedded player.
+- When a PR template exists, place the reference in the most relevant existing section without adding a new section.
+
+If none of these files materially helps review, return an empty \`attachments\` array.`
+      : `
+
+## Review Media Attachments
+
+No eligible local review media is available for this run. Return an empty \`attachments\` array and do not include local-file image or video references in the body.`;
+
   const basePrompt = `# Pull Request Description Generator
 
 You are a pragmatic software engineer focused on writing accurate, concise pull request descriptions. Your task is to analyze commits and generate a factual PR title and body that clearly describes what was changed and why.
@@ -346,7 +373,7 @@ Use this context to describe what changed and why. Prefer concrete information f
 
 ${context.trim()}`
       : ""
-  }`;
+  }${attachmentInstructions}`;
 
   if (template) {
     return `${basePrompt}
@@ -425,5 +452,10 @@ export const prSchema = z.object({
     .string()
     .describe(
       "PR body with markdown formatting, using straightforward language that focuses on facts and technical details",
+    ),
+  attachments: z
+    .array(z.string().min(1))
+    .describe(
+      "Exact repository-relative paths of eligible local review images or videos referenced in the PR body, or an empty array",
     ),
 });

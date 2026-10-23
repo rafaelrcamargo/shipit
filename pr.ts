@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { rm } from "node:fs/promises";
+import { lstat, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { extname, join, resolve, sep } from "node:path";
 
 import { generateText, type LanguageModel, Output } from "ai";
 import chalk from "chalk";
@@ -9,7 +9,11 @@ import type { SimpleGit } from "simple-git";
 
 import { PR_REASONING } from "./ai-settings";
 import { prInstruction, prSchema } from "./constants";
-import { collectRepoContext } from "./context";
+import {
+  collectRepoContext,
+  type ChangedFileContext,
+  type CommandResult,
+} from "./context";
 import { formatAiError } from "./errors";
 import {
   createAiSdkProgressCallbacks,
@@ -41,6 +45,153 @@ type PrHandlerParams = {
 };
 
 type PullRequestLog = (args: string[]) => Promise<{ total: number }>;
+
+type GhRunner = (args: string[]) => Promise<CommandResult>;
+
+const IMAGE_ATTACHMENT_EXTENSIONS = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".svg",
+]);
+const VIDEO_ATTACHMENT_EXTENSIONS = new Set([".mp4", ".mov", ".webm"]);
+const MAX_IMAGE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_ATTACHMENT_BYTES = 100 * 1024 * 1024;
+
+const runGh: GhRunner = async (args) => {
+  const proc = Bun.spawn(["gh", ...args], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+
+  return { code, stdout, stderr };
+};
+
+export async function supportsPullRequestAttachments(
+  runner: GhRunner = runGh,
+): Promise<boolean> {
+  try {
+    const result = await runner(["pr", "create", "--help"]);
+    return (
+      result.code === 0 &&
+      /(?:^|\s)--attach(?:\s|$)/m.test(`${result.stdout}\n${result.stderr}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function getPullRequestAttachmentCandidates(
+  repoRoot: string,
+  changedFiles: ChangedFileContext[],
+): Promise<string[]> {
+  const rootPrefix = repoRoot.endsWith(sep) ? repoRoot : `${repoRoot}${sep}`;
+  const candidates: string[] = [];
+
+  for (const file of changedFiles) {
+    if (/[#\r\n]/.test(file.path)) continue;
+
+    const extension = extname(file.path).toLowerCase();
+    const isImage = IMAGE_ATTACHMENT_EXTENSIONS.has(extension);
+    const isVideo = VIDEO_ATTACHMENT_EXTENSIONS.has(extension);
+    if (!isImage && !isVideo) continue;
+
+    const absolutePath = resolve(repoRoot, file.path);
+    if (!absolutePath.startsWith(rootPrefix)) continue;
+
+    try {
+      const info = await lstat(absolutePath);
+      const maxBytes = isVideo
+        ? MAX_VIDEO_ATTACHMENT_BYTES
+        : MAX_IMAGE_ATTACHMENT_BYTES;
+      if (!info.isFile() || info.size === 0 || info.size > maxBytes) continue;
+    } catch {
+      continue;
+    }
+
+    candidates.push(file.path.startsWith("./") ? file.path : `./${file.path}`);
+  }
+
+  return candidates;
+}
+
+export function resolvePullRequestAttachments(
+  requested: string[],
+  candidates: string[],
+): string[] {
+  const allowed = new Set(candidates);
+  const selected = new Set<string>();
+
+  for (const path of requested) {
+    if (!allowed.has(path)) {
+      throw new Error(`AI selected an unavailable PR attachment: ${path}`);
+    }
+    selected.add(path);
+  }
+
+  return [...selected];
+}
+
+export function buildPullRequestCreateCommand({
+  baseBranch,
+  title,
+  bodyFile,
+  attachments,
+}: {
+  baseBranch: string;
+  title: string;
+  bodyFile: string;
+  attachments: string[];
+}): string[] {
+  const args = [
+    "gh",
+    "pr",
+    "create",
+    "--base",
+    baseBranch,
+    "--title",
+    title,
+    "--body-file",
+    bodyFile,
+  ];
+
+  for (const path of attachments) {
+    args.push("--attach", path);
+  }
+  if (attachments.length === 0) {
+    args.push("--web");
+  }
+
+  return args;
+}
+
+export async function findPullRequestUrl(
+  runner: GhRunner = runGh,
+): Promise<string | undefined> {
+  try {
+    const result = await runner([
+      "pr",
+      "view",
+      "--json",
+      "url",
+      "--jq",
+      ".url",
+    ]);
+    const url = result.stdout.trim();
+    return result.code === 0 && /^https:\/\/[^\s]+$/.test(url)
+      ? url
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export type PullRequestPushState =
   | { status: "up-to-date" }
@@ -195,6 +346,20 @@ export async function handlePullRequest({
       includeGithub: true,
       ticketIds: options.ticketIds ?? [],
     });
+    const repoRoot = (await git.revparse(["--show-toplevel"])).trim();
+    const attachmentCandidates = await getPullRequestAttachmentCandidates(
+      repoRoot,
+      repoContext.changedFiles,
+    );
+    const canAttach =
+      attachmentCandidates.length > 0 &&
+      (await supportsPullRequestAttachments());
+    const availableAttachments = canAttach ? attachmentCandidates : [];
+    if (attachmentCandidates.length > 0 && !canAttach) {
+      log.info(
+        "This GitHub CLI build doesn't support PR attachments; generating a text-only PR.",
+      );
+    }
     prSpinner.message(
       `Writing PR with ${repoContext.commits.length} commit(s), ${repoContext.changedFiles.length} changed file(s), ${template ? "template found" : "no template"}...`,
     );
@@ -228,6 +393,7 @@ export async function handlePullRequest({
           repoContext,
           template || undefined,
           options.context,
+          availableAttachments,
         ),
         reasoning: PR_REASONING,
         telemetry: {
@@ -253,6 +419,18 @@ export async function handlePullRequest({
       return;
     }
 
+    let attachments: string[];
+    try {
+      attachments = resolvePullRequestAttachments(
+        prInfo.attachments,
+        availableAttachments,
+      );
+    } catch (error) {
+      prSpinner.stop("Couldn't validate PR attachments.");
+      log.error(getErrorMessage(error));
+      return;
+    }
+
     prSpinner.stop("Nice! Got your PR ready to rock...");
 
     log.message("", { symbol: chalk.gray("│") });
@@ -263,6 +441,13 @@ export async function handlePullRequest({
     log.message(chalk.dim(wrapText(prInfo.body)), {
       symbol: chalk.gray("│"),
     });
+    if (attachments.length > 0) {
+      log.message("", { symbol: chalk.gray("│") });
+      log.message(chalk.bold("PR Attachments:"), { symbol: chalk.gray("│") });
+      for (const path of attachments) {
+        log.message(path, { symbol: chalk.gray("│") });
+      }
+    }
     log.message("", { symbol: chalk.gray("│") });
 
     const confirmPR = await confirm({
@@ -282,38 +467,48 @@ export async function handlePullRequest({
     try {
       await Bun.write(tempFile, prInfo.body);
 
-      const proc = Bun.spawn(
-        [
-          "gh",
-          "pr",
-          "create",
-          "--base",
-          baseBranch,
-          "--title",
-          prInfo.title,
-          "--body-file",
-          tempFile,
-          "--web",
-        ],
-        {
-          stdout: "pipe",
-          stderr: "pipe",
-        },
-      );
+      const args = buildPullRequestCreateCommand({
+        baseBranch,
+        title: prInfo.title,
+        bodyFile: tempFile,
+        attachments,
+      });
 
-      const output = await new Response(proc.stdout).text();
-      const errors = await new Response(proc.stderr).text();
+      const proc = Bun.spawn(args, {
+        cwd: repoRoot,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
 
-      if (errors && !errors.includes("Opening")) {
-        log.error("GitHub CLI error: " + errors);
+      const [output, errors, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+
+      if (exitCode !== 0) {
+        log.error(`GitHub CLI error: ${errors || output}`);
+        if (attachments.length > 0) {
+          const prUrl = await findPullRequestUrl();
+          if (prUrl) {
+            log.info(
+              `A PR is present for this branch: ${chalk.cyan(prUrl)}. Inspect its body before retrying attachments.`,
+            );
+          } else {
+            log.info(
+              "An attachment upload may have partially succeeded. Inspect the branch's PR state before retrying.",
+            );
+          }
+        }
+        return;
       }
 
-      if (
-        output.includes("Opening") ||
-        output.includes("https://") ||
-        errors.includes("Opening")
-      ) {
-        log.success("PR opened in your browser! Time to ship it 🚀");
+      if (output.includes("https://") || errors.includes("Opening")) {
+        log.success(
+          attachments.length > 0
+            ? "PR created with review media! Time to ship it 🚀"
+            : "PR opened in your browser! Time to ship it 🚀",
+        );
 
         const urlMatch = (output + errors).match(/https:\/\/[^\s]+/);
         if (urlMatch) {
@@ -321,7 +516,7 @@ export async function handlePullRequest({
         }
       }
     } catch (error) {
-      log.error(`Dang! Couldn't open PR in browser: ${getErrorMessage(error)}`);
+      log.error(`Dang! Couldn't create the PR: ${getErrorMessage(error)}`);
       log.info("Manual backup plan:");
       log.info(
         `${chalk.cyan(
